@@ -76,3 +76,19 @@ def test_cache_age_comes_from_the_file_not_its_mtime(tmp_path):
     assert http.cache_get("k", 60) is None
     path.write_text(json.dumps({"a": 1}), encoding="utf8")    # old format without a fetch time
     assert http.cache_get("k", 60) is None
+
+
+def test_risk_numbers():
+    from types import SimpleNamespace as NS
+
+    from cs2tradeup.evaluate import Result
+    from cs2tradeup.pricing import Quote
+
+    def outcome(p, net):
+        return NS(outcome=NS(probability=p), quote=Quote(net, net, 10, "t", False))
+
+    r = Result(None, [outcome(0.5, 100.0), outcome(0.5, 0.0)], cost=40.0, ev=50.0, missing_prices=0)
+    assert r.spread == 50.0
+    assert r.big_loss_chance == 0.5
+    assert r.runs_needed == 68            # ceil((1.645 * 50 / 10) ** 2)
+    assert Result(None, [outcome(1.0, 30.0)], cost=40.0, ev=30.0, missing_prices=0).runs_needed is None

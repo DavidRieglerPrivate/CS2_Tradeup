@@ -48,7 +48,8 @@
       "Bash(git commit -q -m 'Re-check chosen listings before showing them; tests on real API responses *)",
       "Bash(time PYTHONIOENCODING=utf-8 .venv/Scripts/tradeup doctor)",
       "Bash(echo \"exit=$?\")",
-      "Bash(git commit -q -m 'Add '\\\\''tradeup doctor'\\\\'' health check \\(CLI and menu\\) *)"
+      "Bash(git commit -q -m 'Add '\\\\''tradeup doctor'\\\\'' health check \\(CLI and menu\\) *)",
+      "Bash(git commit -q -m 'Show the selling fee'\\\\''s market and how much single results swing *)"
     ]
   }
 }

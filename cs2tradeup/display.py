@@ -67,7 +67,8 @@ def explain(res: Result) -> None:
         "",
         f"* You buy {c.size} skins for [bold]{money(res.cost)}[/] in total.",
         f"* You get [bold]one[/] random skin back. On average it sells for [bold]{money(res.ev)}[/] "
-        f"after the market fee.",
+        f"after the {res.sell_fee * 100:g}% fee for selling"
+        + (f" on {res.sell_market}" if res.sell_market else "") + ".",
         f"* Average result per trade-up: [{'green' if res.profit >= 0 else 'red'}]{signed_money(res.profit)} "
         f"({pct(res.roi)})[/].",
         f"* Chance that the skin you get is worth more than you paid: [bold]{res.profit_chance * 100:.0f}%[/].",
@@ -76,6 +77,16 @@ def explain(res: Result) -> None:
         f"* Worst case: {market_hash_name(worst.outcome.skin, None, c.stattrak)} "
         f"({worst.outcome.probability * 100:.1f}% chance), {signed_money((worst.quote.net or 0) - res.cost)}.",
     ]
+    if len(res.outcomes) > 1:
+        half = ("." if not res.big_loss_chance
+                else ", and you always get back less than half of what you paid." if res.big_loss_chance > 0.999
+                else f", and {res.big_loss_chance * 100:.0f}% of the time you get back less than half.")
+        lines.append(f"* One result typically lands [bold]{money(res.spread)}[/] above or below that average" + half)
+    if res.runs_needed and res.runs_needed > 1:
+        lines.append(f"* To be about 95% sure of being ahead overall, plan on [bold]{res.runs_needed}[/] of these "
+                     f"(about {money(res.runs_needed * res.cost)} spent in total).")
+    lines.append(f"[dim]* Values are Skinport sale prices. If you sell somewhere else, change sell_fee and "
+                 f"sell_market in config.toml (CSFloat 2%, Skinport 8%, Steam 15%).[/]")
     if any(v.quote.illiquid for v in res.outcomes):
         lines.append("[yellow]* Results marked with ! sell rarely, so their price is less certain.[/]")
     console.print(Panel("\n".join(lines), title="What this means", title_align="left", border_style="cyan"))
@@ -131,13 +142,13 @@ def print_result(res: Result, rank: int | None = None, plain: bool = True) -> No
 
 def results_overview(results: list[Result]) -> None:
     t = Table(title="Trade-ups found (best first)", title_justify="left")
-    for col in ("#", "Trade-up", "Type", "Cost", "Avg return", "Avg profit", "Win chance", "Verdict"):
-        t.add_column(col, justify="right" if col in ("#", "Cost", "Avg return", "Avg profit", "Win chance")
+    for col in ("#", "Trade-up", "Type", "Cost", "Avg return", "Avg profit", "Win chance", "Swing", "Verdict"):
+        t.add_column(col, justify="right" if col in ("#", "Cost", "Avg return", "Avg profit", "Win chance", "Swing")
                      else "left")
     for i, r in enumerate(results, 1):
         t.add_row(str(i), r.label, contract_kind(r), money(r.cost), money(r.ev),
                   f"[{'green' if r.profit >= 0 else 'red'}]{signed_money(r.profit)} ({pct(r.roi)})[/]",
-                  f"{r.profit_chance * 100:.0f}%", verdict(r)[0])
+                  f"{r.profit_chance * 100:.0f}%", f"±{money(r.spread)}", verdict(r)[0])
     console.print(t)
 
 

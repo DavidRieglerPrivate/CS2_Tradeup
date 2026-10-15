@@ -19,6 +19,7 @@ DEFAULTS: dict = {
         "min_sales_volume": 3,
         "cap_at_lowest_listing": True,
         "sell_fee": 0.02,
+        "sell_market": "CSFloat",
         "doppler_phase_weights": {
             "Phase 1": 0.2, "Phase 2": 0.2, "Phase 3": 0.2, "Phase 4": 0.2,
             "Ruby": 0.06, "Sapphire": 0.06, "Black Pearl": 0.08, "Emerald": 0.2,

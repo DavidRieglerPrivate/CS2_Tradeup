@@ -1,6 +1,7 @@
 """Turn a contract into money: outcome values, EV, ROI, profit chance."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from .engine import Contract, Outcome
@@ -24,6 +25,27 @@ class Result:
     listings: list = field(default_factory=list)
     label: str = ""
     problem: object = None  # the optimizer Problem this came from, so it can be re-solved without sold listings
+    sell_fee: float = 0.0
+    sell_market: str = ""
+
+    @property
+    def spread(self) -> float:
+        """Standard deviation of the sell value of one trade-up (how much single results swing)."""
+        return sum(v.outcome.probability * ((v.quote.net or 0) - self.ev) ** 2 for v in self.outcomes) ** 0.5
+
+    @property
+    def runs_needed(self) -> int | None:
+        """Trade-ups needed to be ~95% sure the total comes out ahead (normal approximation); None if EV <= 0."""
+        if self.profit <= 0:
+            return None
+        if self.spread == 0:
+            return 1
+        return max(1, math.ceil((1.645 * self.spread / self.profit) ** 2))
+
+    @property
+    def big_loss_chance(self) -> float:
+        """Chance of getting back less than half of what the inputs cost."""
+        return sum(v.outcome.probability for v in self.outcomes if (v.quote.net or 0) < self.cost / 2)
 
     @property
     def profit(self) -> float:
@@ -63,4 +85,6 @@ def evaluate(contract: Contract, prices: PriceBook) -> Result:
             ev += o.probability * q.net
         valued.append(ValuedOutcome(o, q))
     cost = sum(i.price for i in contract.inputs)
-    return Result(contract, valued, cost, ev, missing)
+    pcfg = prices.cfg["pricing"]
+    return Result(contract, valued, cost, ev, missing, sell_fee=float(pcfg["sell_fee"]),
+                  sell_market=str(pcfg.get("sell_market", "")))

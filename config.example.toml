@@ -21,7 +21,9 @@ median_window = "last_7_days"         # last_24_hours | last_7_days | last_30_da
 min_sales_volume = 3                  # use a longer window until it has this many sales; flag if none does
 cap_at_lowest_listing = true          # never value an output above the cheapest listing on sale right now
 # Fee you pay when SELLING the output (0.02 = CSFloat, 0.08 = Skinport, 0.15 = Steam).
+# Outputs are valued at Skinport sale prices either way; set both lines to where you actually sell.
 sell_fee = 0.02
+sell_market = "CSFloat"   # only used to label results
 # Rough Doppler / Gamma Doppler phase weights (community estimates, not official).
 [pricing.doppler_phase_weights]
 "Phase 1" = 0.2
