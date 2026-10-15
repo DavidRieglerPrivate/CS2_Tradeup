@@ -1,0 +1,2 @@
+# batch files break with LF line endings
+*.bat text eol=crlf

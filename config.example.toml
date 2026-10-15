@@ -1,0 +1,58 @@
+# Copy this file to config.toml and fill in your keys.
+# Keys can also come from environment variables:
+#   CSFLOAT_API_KEY, WAXPEER_API_KEY, DMARKET_PUBLIC_KEY, DMARKET_SECRET_KEY
+
+[keys]
+csfloat = ""
+waxpeer = ""
+dmarket_public = ""   # hex public key from DMarket account settings
+dmarket_secret = ""   # hex secret key (128 hex chars)
+
+[engine]
+# "normalized": each input float is scaled to its own skin's range (current CS2 behaviour).
+# "legacy":     raw input floats are averaged (pre-update behaviour).
+float_formula = "normalized"
+# Stay this far below a wear boundary so float32 rounding can't push the output over it.
+float_safety_margin = 0.000005
+
+[pricing]
+# Outputs are valued at the Skinport sales median of this window, falling back to longer windows.
+median_window = "last_7_days"         # last_24_hours | last_7_days | last_30_days | last_90_days
+min_sales_volume = 3                  # use a longer window until it has this many sales; flag if none does
+cap_at_lowest_listing = true          # never value an output above the cheapest listing on sale right now
+# Fee you pay when SELLING the output (0.02 = CSFloat, 0.08 = Skinport, 0.15 = Steam).
+sell_fee = 0.02
+# Rough Doppler / Gamma Doppler phase weights (community estimates, not official).
+[pricing.doppler_phase_weights]
+"Phase 1" = 0.2
+"Phase 2" = 0.2
+"Phase 3" = 0.2
+"Phase 4" = 0.2
+"Ruby" = 0.06
+"Sapphire" = 0.06
+"Black Pearl" = 0.08
+"Emerald" = 0.2
+
+# Extra cost added on top of the listing price when BUYING inputs (deposit/card fees etc).
+[buy_fees]
+csfloat = 0.0
+dmarket = 0.0
+waxpeer = 0.0
+skinport = 0.0
+
+[markets]
+enabled = ["csfloat", "dmarket", "waxpeer"]
+include_trade_locked = false   # Waxpeer/DMarket listings still under Steam trade hold
+
+[rate_limits]   # requests per second
+csfloat = 3.0      # measured: ~50k requests/day quota
+dmarket = 5.0      # measured: 30 requests/second
+waxpeer = 0.3      # documented: 20 per minute for search-by-name
+skinport = 0.025   # documented: 8 per 5 minutes
+
+[scan]
+top_candidates = 15          # how many coarse candidates get a deep (per-listing) check
+max_results = 10
+min_roi = 0.0                # 0.05 = only show contracts with >= 5% expected ROI
+max_contract_cost = 0        # USD, 0 = no limit
+fetch_float_slack = 2.0      # fetch listings up to this multiple of the required avg normalized float
