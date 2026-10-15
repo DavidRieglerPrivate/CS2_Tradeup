@@ -60,7 +60,9 @@
       "Bash(git commit -q -m 'Add '\\\\''tradeup watch'\\\\'': repeated scans with Windows notifications *)",
       "Bash(time PYTHONIOENCODING=utf-8 .venv/Scripts/tradeup optimize -i \"col:Dead Hand=10\" --tier milspec -t MW)",
       "Bash(C:/Users/david/Documents/Projects/CS2_Tradeup/.venv/Scripts/python -c ' *)",
-      "Bash(git commit -q -m 'Skip a market whose request quota is used up instead of stalling the scan *)"
+      "Bash(git commit -q -m 'Skip a market whose request quota is used up instead of stalling the scan *)",
+      "Bash(PYTHONIOENCODING=utf-8 timeout 60 .venv/Scripts/tradeup)",
+      "Bash(git commit -q -m 'Menu search: explain a wrong row number instead of silently searching again *)"
     ]
   }
 }

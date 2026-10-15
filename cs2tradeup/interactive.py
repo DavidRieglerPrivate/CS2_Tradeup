@@ -76,8 +76,10 @@ def ask_money(question: str) -> float:
 def pick_from_search(cat: Catalog, prompt: str, tier: int | None = None, skins: bool = True,
                      collections: bool = True, stattrak: bool = False) -> tuple[str, object] | None:
     """Ask for a name, show matches, let the user pick one. Returns None when the user presses Enter."""
+    q = ""
     while True:
-        q = Prompt.ask(prompt + " [dim](0 = main menu)[/]", default="", show_default=False).strip()
+        if not q:
+            q = Prompt.ask(prompt + " [dim](0 = main menu)[/]", default="", show_default=False).strip()
         if not q:
             return None
         if q.lower() in ("0", "back"):
@@ -87,6 +89,7 @@ def pick_from_search(cat: Catalog, prompt: str, tier: int | None = None, skins: 
             hits = [h for h in hits if h[0] != "skin" or h[1].stattrak]
         if not hits:
             console.print("[yellow]Nothing found. Try part of the name, e.g. 'redline' or 'asiimov'.[/]")
+            q = ""
             continue
         t = Table(show_header=True)
         t.add_column("#", justify="right")
@@ -103,9 +106,24 @@ def pick_from_search(cat: Catalog, prompt: str, tier: int | None = None, skins: 
                 c: Collection = obj
                 t.add_row(str(i), c.name, "collection", c.case_name or "")
         console.print(t)
-        raw = Prompt.ask("Pick a number (or press Enter to search again)", default="").strip()
-        if raw.isdigit() and 1 <= int(raw) <= len(hits):
-            return hits[int(raw) - 1]
+        if len(hits) == 1:
+            ask = "Press Enter to use it, or type another name to search again"
+        else:
+            ask = f"Type its number from the # column (1-{len(hits)}), or another name to search again"
+        while True:
+            raw = Prompt.ask(ask, default="1" if len(hits) == 1 else "", show_default=False).strip()
+            if raw.lower() in ("0", "back"):
+                raise Back
+            if raw.isdigit():
+                if 1 <= int(raw) <= len(hits):
+                    return hits[int(raw) - 1]
+                # usually a quantity typed too early ("5" for five Coverts)
+                console.print(f"[yellow]{raw} isn't in the # column. Pick the row first"
+                              + (" (just press Enter)" if len(hits) == 1 else f" (1-{len(hits)})")
+                              + "; you'll be asked how many you want right after.[/]")
+                continue
+            q = raw   # a new name: search again straight away (empty = back to the name prompt)
+            break
 
 
 RARITY_OPTIONS = [
