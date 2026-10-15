@@ -50,7 +50,14 @@
       "Bash(echo \"exit=$?\")",
       "Bash(git commit -q -m 'Add '\\\\''tradeup doctor'\\\\'' health check \\(CLI and menu\\) *)",
       "Bash(git commit -q -m 'Show the selling fee'\\\\''s market and how much single results swing *)",
-      "Bash(git commit -q -m 'Calibrate quick-scan estimates against real contracts; fix value of wear-inverted outputs *)"
+      "Bash(git commit -q -m 'Calibrate quick-scan estimates against real contracts; fix value of wear-inverted outputs *)",
+      "Bash(.venv/Scripts/python -)",
+      "Bash(PYTHONIOENCODING=utf-8 .venv/Scripts/python -c ' *)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(sed -i 's/from .display import console, contract_kind, money, pct, print_result/from .display import console, contract_kind, money, pct, print_result, signed_money/; s/profit {money\\(res.profit\\)} \"/profit {signed_money\\(res.profit\\)} \"/; s/profit {money\\(r.profit\\)}, \"/profit {signed_money\\(r.profit\\)}, \"/' cs2tradeup/watch.py)",
+      "Bash(printf 'data/alerts.log\\\\n')",
+      "Bash(.venv/Scripts/tradeup --help)",
+      "Bash(git commit -q -m 'Add '\\\\''tradeup watch'\\\\'': repeated scans with Windows notifications *)"
     ]
   }
 }

@@ -144,6 +144,16 @@ def optimize(
     print_result(res)
 
 
+def scan_settings(cfg, tier: list[str], mode: str, target: list[str]):
+    """(tiers, StatTrak modes, targets) from the scan/watch options."""
+    tiers = sorted({parse_tier(t) for t in tier})
+    mode_map = {"normal": [False], "stattrak": [True], "both": [False, True]}
+    if mode.lower() not in mode_map:
+        raise typer.BadParameter(f"unknown mode '{mode}', use normal, stattrak or both", param_hint="--mode")
+    targets = [(t.upper(), parse_target(t, cfg.safety_margin)) for t in target]
+    return tiers, mode_map[mode.lower()], targets
+
+
 @app.command()
 def scan(
     tier: list[str] = typer.Option(["industrial", "milspec", "restricted", "classified"], "--tier",
@@ -166,12 +176,7 @@ def scan(
     top = top or int(cfg["scan"]["top_candidates"])
     results = results or int(cfg["scan"]["max_results"])
     min_roi = float(cfg["scan"]["min_roi"]) if min_roi is None else min_roi
-    tiers = sorted({parse_tier(t) for t in tier})
-    mode_map = {"normal": [False], "stattrak": [True], "both": [False, True]}
-    if mode.lower() not in mode_map:
-        raise typer.BadParameter(f"unknown mode '{mode}', use normal, stattrak or both", param_hint="--mode")
-    modes = mode_map[mode.lower()]
-    targets = [(t.upper(), parse_target(t, cfg.safety_margin)) for t in target]
+    tiers, modes, targets = scan_settings(cfg, tier, mode, target)
     out = run_scan(cfg, Catalog(), tiers, modes, targets, souvenir, top, min_roi, coarse_only, verbose)
     if coarse_only:
         return
@@ -186,6 +191,30 @@ def scan(
                   f"({out.requests} API requests)")
     for i, r in enumerate(out.results[:results], 1):
         print_result(r, i)
+
+
+@app.command()
+def watch(
+    every: float = typer.Option(60, help="Minutes between scans"),
+    tier: list[str] = typer.Option(["milspec", "restricted", "classified"], "--tier", help="Input rarities to scan"),
+    target: list[str] = typer.Option(["MW", "FT"], "--target", "-t", help="Target wear(s) or max floats"),
+    mode: str = typer.Option("normal", help="normal | stattrak | both"),
+    souvenir: bool = typer.Option(True, "--souvenir/--no-souvenir", help="Allow Souvenir inputs"),
+    top: int = typer.Option(10, help="How many coarse candidates get a deep listing check per scan"),
+    min_roi: float = typer.Option(0.05, help="Alert only at or above this expected ROI"),
+    budget: Optional[float] = typer.Option(None, help="Max total contract cost in USD"),
+    once: bool = typer.Option(False, "--once", help="Run one scan and exit (for Windows Task Scheduler)"),
+    config: Optional[str] = typer.Option(None, help="Path to config.toml"),
+):
+    """Scan again every few minutes and send a notification when a new profitable contract shows up."""
+    from .watch import watch as run_watch
+
+    tiers, modes, targets = scan_settings(load_config(config), tier, mode, target)
+    try:
+        run_watch(lambda: load_config(config), tiers, modes, targets, souvenir, top, min_roi, every,
+                  once=once, budget=budget)
+    except KeyboardInterrupt:
+        console.print("\nStopped watching.")
 
 
 @app.command()

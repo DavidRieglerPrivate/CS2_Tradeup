@@ -12,12 +12,19 @@ guarantee a target output float. Outputs are valued at Skinport's recent sales m
    - **Build my own trade-up:** type skin or collection names, get the cheapest buy links.
    - **Check a trade-up with skins I have:** enter your skins and floats, see odds and value.
    - **Look at a collection**, **Set up market API keys**, **How do trade-ups work?**
+   - **Check that the markets are working:** one quick request to every market (same as `tradeup doctor`).
 
 Every result starts with a plain-language summary and a verdict: *Looks profitable*, *Risky gamble*
 or *Not worth it*. After that you can open all buy links in your browser with one question.
 
 Output values use the Skinport sales median of the shortest window with at least 3 sales, and are
 never valued above the cheapest listing currently on sale. Both rules are in `config.toml`.
+The selling fee is CSFloat's 2% by default: set `sell_fee` and `sell_market` in `config.toml` to the
+market you actually sell on (Skinport 8%, Steam 15%).
+
+Each result also shows how much one trade-up swings around its average, the chance of getting back less
+than half, and how many repeats it takes to be about 95% sure of coming out ahead. Right before buy
+links are shown, every chosen listing is checked again; sold or repriced ones are replaced.
 
 ## Setup for the command line
 
@@ -58,7 +65,21 @@ tradeup optimize -i "col:Wildfire=2-5" -i "col:Breakout" --tier covert -t FT --o
 tradeup scan --coarse-only                     # no keys needed
 tradeup scan --tier restricted --tier classified -t MW -t FT --mode both --top 15 --min-roi 0.05
 tradeup scan --tier covert -t FT --budget 600  # knife/glove contracts under $600
+
+# Scan every hour and get a Windows notification for each new contract at >= 5% expected ROI
+tradeup watch --every 60 --tier restricted --tier classified -t MW -t FT --min-roi 0.05
+tradeup watch --once ...                       # a single pass, for Windows Task Scheduler
+
+# Check that every price source and market still answers in a format the program understands
+tradeup doctor
 ```
+
+`watch` remembers contracts it already alerted on (`data/alerts_seen.json`) and writes each alert with its
+buy links to `data/alerts.log`. To run it without a terminal open, create a Task Scheduler task that runs
+`.venv\Scripts\tradeup.exe watch --once ...` with "Start in" set to this folder.
+
+Run `tradeup doctor` when results look thin. A market whose API changed doesn't raise an error, it just
+stops returning listings; the doctor reports that as FAIL.
 
 Input specs for `optimize`: `"Skin=3"` exactly 3, `"Skin"` any number, `"col:Name=7"` 7 from a
 collection, `"col:Name=2-5"` between 2 and 5. Targets are `FN/MW/FT/WW/BS` or a maximum float.
@@ -79,3 +100,26 @@ collection, `"col:Name=2-5"` between 2 and 5. Targets are `FN/MW/FT/WW/BS` or a 
   in 32-bit float precision.
 - **Optimizer:** OR-Tools CP-SAT chooses the exact listings: exactly N, group counts, float budget,
   lowest cost or highest expected profit.
+- **Quick estimate (coarse scan):** each output is valued at the cheapest wear it can land in, and an
+  input at the cheapest bulk listing that fits, with markups measured against real fills (buying 10
+  costs more than 10x the single cheapest listing). On 18 live contracts the cost estimate's median
+  error was 3%. The deep pass on real listings is what counts.
+
+## Check the math against the game
+
+The rules above (normalized float averaging, Doppler phases sharing a slot, Souvenir inputs giving normal
+outputs) follow the current CS2 trade-up behaviour as documented by the community, but they haven't been
+compared with a real contract here. To check: before you sign a contract, enter its inputs and floats with
+`tradeup calc` (or menu option 3) and note the predicted float for the result you get. If the in-game
+float differs from the prediction beyond the 6th decimal, the formula is off; set `float_formula` or
+report it.
+
+## Market notes
+
+- **DMarket** is searched by its float buckets (`floatPart`, e.g. FT-0 = 0.15-0.18), so cheap high-float
+  offers don't crowd out the low floats a contract needs.
+- **Waxpeer** has no float filter: listings come cheapest first, up to 3 pages of 100 per wear, so very
+  low floats in a popular wear can be missed there. Trade-held items are left out unless
+  `include_trade_locked = true`.
+- **Souvenir** searches are skipped for skins with no Souvenir listing in the Skinport or Waxpeer bulk
+  data, which saves about half the requests. A Souvenir sold only on CSFloat or DMarket is missed.
