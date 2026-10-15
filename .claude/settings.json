@@ -49,7 +49,8 @@
       "Bash(time PYTHONIOENCODING=utf-8 .venv/Scripts/tradeup doctor)",
       "Bash(echo \"exit=$?\")",
       "Bash(git commit -q -m 'Add '\\\\''tradeup doctor'\\\\'' health check \\(CLI and menu\\) *)",
-      "Bash(git commit -q -m 'Show the selling fee'\\\\''s market and how much single results swing *)"
+      "Bash(git commit -q -m 'Show the selling fee'\\\\''s market and how much single results swing *)",
+      "Bash(git commit -q -m 'Calibrate quick-scan estimates against real contracts; fix value of wear-inverted outputs *)"
     ]
   }
 }

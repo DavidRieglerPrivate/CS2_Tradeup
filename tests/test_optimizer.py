@@ -76,3 +76,20 @@ def test_optimizer_infeasible(cat):
     assert solve(cat, FlatPrices(), Problem(4, False, 0.38 - 5e-6, ls)) is None   # floats too high
     ls = make_listings(redline, 30, rng, lo=0.1, hi=0.11)
     assert solve(cat, FlatPrices(), Problem(4, False, 0.15 - 5e-6, ls)) is None   # Asiimov can't be MW
+
+
+def test_collection_value_uses_cheapest_reachable_wear(cat):
+    # Sport & Field Covert: M4A1-S | Fade exists only from 0.00 to 0.08, and its rare MW sells above FN
+    from cs2tradeup.optimizer import collection_value
+
+    class FadePrices(FlatPrices):
+        def quote(self, variants, wear, stattrak):
+            p = {"FN": 138.0, "MW": 196.0}[wear]
+            return Quote(p, p, 10, "test", False)
+
+    col = cat.find_collection("Sport & Field")
+    assert [g[0].name for g in col.outputs_for(4, False)] == ["M4A1-S | Fade"]
+    value, missing = collection_value(cat, FadePrices(), col.id, 4, False, 0.379995)
+    assert (value, missing) == (138.0, 0)          # a real contract can land in FN, so FN's price is guaranteed
+    value, _ = collection_value(cat, FadePrices(), col.id, 4, False, 0.069995)
+    assert value == 138.0

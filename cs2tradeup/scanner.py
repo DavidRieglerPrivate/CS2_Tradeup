@@ -22,6 +22,11 @@ from .wear import WEAR_BY_CODE, possible_wears
 
 # Price multiplier for a wear tier where only part of the float range fits (x(1 + 3*unusable share)).
 PARTIAL_PENALTY = 3.0
+# Buying 10 inputs means climbing past the single cheapest listing. Measured on 2026-10-15 over 18 live
+# contracts (Mil-Spec to Classified, cheapest real fill vs this estimate): whole-tier fits cost a median
+# 1.29x the cheapest listing (all 6 between 1.18 and 1.31), partial fits 1.10x on top of PARTIAL_PENALTY.
+FULL_TIER_MARKUP = 1.29
+PARTIAL_MARKUP = 1.10
 
 
 @dataclass
@@ -86,12 +91,12 @@ def coarse_candidates(catalog: Catalog, prices: PriceBook, cfg: Config, tiers: l
                                 offer = prices.cheapest(s, w, st, souv)
                                 if not offer:
                                     continue
-                                price, note = offer.price, ""
+                                price, note = offer.price * FULL_TIER_MARKUP, ""
                                 if n_hi > min(1.0, bound) + 1e-9:
                                     # only the low end of this wear tier fits: the tier's cheapest listing
                                     # probably isn't low enough, so penalize by how much of the tier is unusable
                                     usable = (bound - n_lo) / (n_hi - n_lo) if n_hi > n_lo else 1.0
-                                    price *= 1 + PARTIAL_PENALTY * (1 - usable)
+                                    price = offer.price * (1 + PARTIAL_PENALTY * (1 - usable)) * PARTIAL_MARKUP
                                     note = " partial"
                                 if best is None or price < best[0]:
                                     tag = "Souvenir " if souv else ""

@@ -18,7 +18,7 @@ from .engine import Contract, ContractInput, contract_size, max_avg_for, normali
 from .evaluate import Result, evaluate
 from .markets import Listing
 from .pricing import PriceBook
-from .wear import wear_of
+from .wear import WEAR_BY_CODE, possible_wears
 
 SCALE = 1_000_000
 
@@ -52,8 +52,10 @@ def collection_bound(catalog: Catalog, collection_id: str, tier: int, stattrak: 
 
 def collection_value(catalog: Catalog, prices: PriceBook, collection_id: str, tier: int, stattrak: bool,
                      target: float) -> tuple[float, int]:
-    """Expected net value contributed per input slot from this collection (at the guaranteed wear).
+    """Expected net value contributed per input slot from this collection, guaranteed for any float <= target.
 
+    Each outcome is valued at its cheapest wear among those it can land in (its min float up to the target).
+    A worse wear is usually cheaper, but not always: a rare MW M4A1-S | Fade sells above FN.
     Returns (sum over outcomes of net/len(pool), number of outcomes without a price).
     Multiply by 1/N for the per-input contribution.
     """
@@ -61,12 +63,17 @@ def collection_value(catalog: Catalog, prices: PriceBook, collection_id: str, ti
     total, missing = 0.0, 0
     for g in pool:
         s = g[0]
-        wear = None if s.is_vanilla else wear_of(min(target, s.max_float))
-        q = prices.quote(g, wear, stattrak)
-        if q.net is None:
+        if s.is_vanilla:
+            nets = [prices.quote(g, None, stattrak).net]
+        else:
+            top = min(target, s.max_float)
+            nets = [prices.quote(g, w, stattrak).net for w in possible_wears(s.min_float, s.max_float)
+                    if WEAR_BY_CODE[w][2] <= top]
+        nets = [n for n in nets if n is not None]
+        if not nets:
             missing += 1
         else:
-            total += q.net
+            total += min(nets)
     return (total / len(pool) if pool else 0.0), missing
 
 

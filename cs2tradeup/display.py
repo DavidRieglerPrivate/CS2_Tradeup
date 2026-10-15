@@ -155,7 +155,7 @@ def results_overview(results: list[Result]) -> None:
 def coarse_table(cands, top: int) -> None:
     t = Table(title=f"Quick estimate: top {min(top, len(cands))} of {len(cands)} ideas "
                     "(based on lowest market prices, not exact floats yet)", title_justify="left")
-    for c in ("Collection", "Type", "Target", "Est. cost", "Est. return", "Cheapest input that fits", "Est. ROI"):
+    for c in ("Collection", "Type", "Target", "Est. cost", "Est. return", "Est. price per input (cheapest that fits)", "Est. ROI"):
         t.add_column(c)
     for c in cands[:top]:
         t.add_row(c.collection.name,
