@@ -188,6 +188,18 @@ def scan(
         print_result(r, i)
 
 
+@app.command()
+def doctor(config: Optional[str] = typer.Option(None, help="Path to config.toml")):
+    """Check that every price source and market still answers in the format this program understands."""
+    from .actions import run_doctor
+    from .display import doctor_table
+
+    checks = run_doctor(load_config(config), Catalog())
+    doctor_table(checks)
+    if any(c.status == "fail" for c in checks):
+        raise typer.Exit(1)
+
+
 def main():
     for stream in (sys.stdout, sys.stderr):
         try:  # Windows consoles default to cp1252, which can't print ★ or ™

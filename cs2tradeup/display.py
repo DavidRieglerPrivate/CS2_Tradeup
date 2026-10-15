@@ -154,6 +154,21 @@ def coarse_table(cands, top: int) -> None:
     console.print(t)
 
 
+def doctor_table(checks) -> None:
+    t = Table(title="Health check", title_justify="left")
+    for c in ("Source", "Result", "Details"):
+        t.add_column(c)
+    marks = {"ok": "[green]OK[/]", "fail": "[bold red]FAIL[/]", "skip": "[dim]skipped[/]"}
+    for c in checks:
+        t.add_row(c.name, marks[c.status], c.detail)
+    console.print(t)
+    if any(c.status == "fail" for c in checks):
+        console.print("[red]Something is broken.[/] A market that fails here will silently return no listings "
+                      "in scans. Check your API key, or the market may have changed its API.")
+    else:
+        console.print("[green]Everything answers as expected.[/]")
+
+
 def collection_table(col: Collection) -> None:
     console.rule(f"[bold]{col.name}[/]" + (f"  (case: {col.case_name})" if col.case_name else ""))
     for tier in sorted(col.tiers):

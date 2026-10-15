@@ -155,3 +155,40 @@ def test_confirm_drops_result_when_nothing_is_left(cat):
     res = solve(cat, FlatPrices(), Problem(s.tier, False, 0.38, ls, objective="cost"))
     out, sold = asyncio.run(confirm_listings(cat, FlatPrices(), [Shop(sold={"4"})], [res]))
     assert out == [] and sold == 1
+
+
+def test_doctor_flags_a_market_that_returns_nothing(cat, monkeypatch):
+    from cs2tradeup import actions, markets
+    from cs2tradeup.config import load_config
+
+    async def fake_load(self, http):
+        for r in fixture("skinport_history.json") * 100:
+            self.sales[(r["market_hash_name"] + str(len(self.sales)), r.get("version"))] = r
+        for r in fixture("skinport_history.json"):
+            self.sales[(r["market_hash_name"], r.get("version"))] = r
+        for r in fixture("skinport_items.json"):
+            self.skinport[(r["market_hash_name"], r.get("version"))] = r
+        self.waxpeer = {str(i): {} for i in range(2000)}
+
+    class Empty(Market):
+        name = "empty"
+        available = True
+
+        async def listings(self, skin, stattrak, souvenir, max_float):
+            return []
+
+    class Good(Empty):
+        name = "good"
+
+        async def listings(self, skin, stattrak, souvenir, max_float):
+            return [Listing("good", "1", skin, skin.name, 0.2, 30.0, 30.0, False, False, "")]
+
+    monkeypatch.setattr(PriceBook, "load", fake_load)
+    monkeypatch.setattr(markets, "MARKETS", {"empty": Empty, "good": Good})
+    cfg = load_config("nonexistent.toml")
+    cfg.raw["markets"]["enabled"] = ["empty", "good", "nope"]
+    checks = {c.name: c for c in actions.run_doctor(cfg, cat)}
+    assert checks["Skinport prices"].status == "ok"
+    assert checks["empty"].status == "fail" and "0 listings" in checks["empty"].detail
+    assert checks["good"].status == "ok"
+    assert checks["nope"].status == "fail"

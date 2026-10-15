@@ -369,6 +369,15 @@ def action_keys() -> None:
         console.print("Nothing changed.")
 
 
+def action_doctor(cat: Catalog) -> None:
+    from .actions import run_doctor
+    from .display import doctor_table
+
+    with console.status("Asking every market for a few listings..."):
+        checks = run_doctor(load_config(), cat)
+    doctor_table(checks)
+
+
 HELP = """\
 [bold]What is a trade-up?[/]
 You give the game 10 skins of the same rarity and get 1 skin of the next rarity back.
@@ -403,6 +412,7 @@ def run() -> None:
         ("Look at a collection", "skins, rarities, float ranges", lambda: action_collection(cat)),
         ("Set up market API keys", "", action_keys),
         ("How do trade-ups work?", "", lambda: console.print(Panel(HELP, border_style="cyan"))),
+        ("Check that the markets are working", "about a minute", lambda: action_doctor(cat)),
     ]
     while True:
         st = markets_status(load_config())

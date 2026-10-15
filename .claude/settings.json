@@ -45,7 +45,10 @@
       "Bash(git rm *)",
       "Bash(git -c core.safecrlf=false commit -q -m 'Initial commit: CS2 trade-up calculator with fixes from live API testing *)",
       "Bash(.venv/Scripts/python -c ' *)",
-      "Bash(git commit -q -m 'Re-check chosen listings before showing them; tests on real API responses *)"
+      "Bash(git commit -q -m 'Re-check chosen listings before showing them; tests on real API responses *)",
+      "Bash(time PYTHONIOENCODING=utf-8 .venv/Scripts/tradeup doctor)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(git commit -q -m 'Add '\\\\''tradeup doctor'\\\\'' health check \\(CLI and menu\\) *)"
     ]
   }
 }

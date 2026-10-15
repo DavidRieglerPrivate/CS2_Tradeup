@@ -140,6 +140,91 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
     return asyncio.run(run())
 
 
+@dataclass
+class Check:
+    name: str
+    status: str   # "ok", "fail" or "skip"
+    detail: str
+
+
+DOCTOR_SKIN = "AK-47 | Redline"   # liquid on every market, float 0.10-0.70
+DOCTOR_MAX_FLOAT = 0.25           # below the cheap high-float FT listings, so float filtering is exercised
+
+
+def run_doctor(cfg: Config, cat: Catalog) -> list[Check]:
+    """One real request per source, checking that what comes back still parses into sensible data.
+
+    Markets fail silently when their response format changes (listings just stop showing up), so a
+    zero count is treated as a failure here.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from .markets import MARKETS
+
+    async def run() -> list[Check]:
+        checks = [Check("Item catalog", "ok" if len(cat.collections) > 50 else "fail",
+                        f"{len(cat.skins)} skins, {len(cat.collections)} collections")]
+        http = Http(cfg["rate_limits"])                      # bulk prices may come from the cache
+        live = Http(cfg["rate_limits"], cache_dir=Path(tempfile.mkdtemp(prefix="tradeup-doctor-")))
+        try:
+            pb = PriceBook(cfg)
+            skin = cat.find_skin(DOCTOR_SKIN)
+            try:
+                await pb.load(http)
+                q = pb.quote([skin], "FT", False)
+                checks.append(Check("Skinport prices", "ok" if len(pb.sales) > 1000 and q.price else "fail",
+                                    f"{len(pb.sales)} sales rows, {len(pb.skinport)} listings rows, "
+                                    f"{DOCTOR_SKIN} (FT) valued at {q.price and round(q.price, 2)}"))
+            except Exception as e:
+                checks.append(Check("Skinport prices", "fail", str(e)[:150]))
+            wx = pb.waxpeer.get(market_hash_name(skin, "FT")) or {}
+            checks.append(Check("Waxpeer bulk prices", "ok" if len(pb.waxpeer) > 1000 else "fail",
+                                f"{len(pb.waxpeer)} items" + (f", cheapest {DOCTOR_SKIN} FT ${wx['min'] / 1000:.2f}"
+                                                              if wx.get("min") else "")))
+            for name in cfg["markets"]["enabled"]:
+                cls = MARKETS.get(name)
+                if not cls:
+                    checks.append(Check(name, "fail", "unknown market name in config.toml [markets] enabled"))
+                    continue
+                m = cls(live, cfg)
+                if not m.available:
+                    checks.append(Check(m.name, "skip", "no API key set"))
+                    continue
+                try:
+                    ls = await m.listings(skin, False, False, DOCTOR_MAX_FLOAT)
+                except Exception as e:
+                    checks.append(Check(m.name, "fail", f"request failed: {str(e)[:150]}"))
+                    continue
+                problems = []
+                if not ls:
+                    problems.append("0 listings parsed (the API format may have changed)")
+                if any(not (skin.min_float <= l.float_value <= DOCTOR_MAX_FLOAT) for l in ls):
+                    problems.append("floats outside the requested band")
+                if any(l.price <= 0 or l.price > 10_000 for l in ls):
+                    problems.append("implausible prices")
+                if any("Redline" not in l.name for l in ls):
+                    problems.append("listings for the wrong skin")
+                if ls:
+                    try:
+                        gone = await m.gone(ls[:2])
+                        if len(gone) == 2:
+                            problems.append("availability check says fresh listings are gone")
+                    except Exception as e:
+                        problems.append(f"availability check failed: {str(e)[:100]}")
+                cheapest = min((l.price for l in ls), default=None)
+                detail = (f"{len(ls)} listings of {DOCTOR_SKIN} at float <= {DOCTOR_MAX_FLOAT}"
+                          + (f", cheapest ${cheapest:.2f}" if cheapest else ""))
+                checks.append(Check(m.name, "fail" if problems else "ok",
+                                    "; ".join(problems) + (f" ({detail})" if problems else "") or detail))
+            return checks
+        finally:
+            await http.close()
+            await live.close()
+
+    return asyncio.run(run())
+
+
 def run_check(cfg: Config, contract: Contract) -> Result:
     """Value a contract with known floats. Inputs are priced at the cheapest listing of their condition."""
     async def run():
