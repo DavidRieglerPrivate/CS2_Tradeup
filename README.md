@@ -116,6 +116,11 @@ report it.
 
 ## Market notes
 
+- **CSFloat** allows 200 requests per window (it resets within the hour). When it's used up, scans
+  carry on with the other markets and say when CSFloat is back; `tradeup doctor` shows how many requests
+  are left. Re-checking listings before showing them costs one CSFloat request per listing, so only the
+  best `confirm_top` results (default 3) are re-checked.
+
 - **DMarket** is searched by its float buckets (`floatPart`, e.g. FT-0 = 0.15-0.18), so cheap high-float
   offers don't crowd out the low floats a contract needs.
 - **Waxpeer** has no float filter: listings come cheapest first, up to 3 pages of 100 per wear, so very

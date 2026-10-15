@@ -47,7 +47,7 @@ enabled = ["csfloat", "dmarket", "waxpeer"]
 include_trade_locked = false   # Waxpeer/DMarket listings still under Steam trade hold
 
 [rate_limits]   # requests per second
-csfloat = 3.0      # measured: ~50k requests/day quota
+csfloat = 3.0      # bursts are fine, but the quota is 200 requests per window (x-ratelimit-* headers)
 dmarket = 5.0      # measured: 30 requests/second
 waxpeer = 0.3      # documented: 20 per minute for search-by-name
 skinport = 0.025   # documented: 8 per 5 minutes
@@ -58,3 +58,4 @@ max_results = 10
 min_roi = 0.0                # 0.05 = only show contracts with >= 5% expected ROI
 max_contract_cost = 0        # USD, 0 = no limit
 fetch_float_slack = 2.0      # fetch listings up to this multiple of the required avg normalized float
+confirm_top = 3              # re-check this many best results are still for sale (CSFloat: 1 request per listing)

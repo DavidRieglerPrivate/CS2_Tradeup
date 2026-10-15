@@ -173,10 +173,15 @@ def doctor_table(checks) -> None:
     for c in checks:
         t.add_row(c.name, marks[c.status], c.detail)
     console.print(t)
-    if any(c.status == "fail" for c in checks):
+    fails = [c for c in checks if c.status == "fail"]
+    quota = [c for c in fails if "limit used up" in c.detail]
+    if quota:
+        console.print(f"[yellow]{', '.join(c.name for c in quota)}: request limit used up.[/] Scans skip it until "
+                      "the reset time shown, then it works again by itself.")
+    if len(fails) > len(quota):
         console.print("[red]Something is broken.[/] A market that fails here will silently return no listings "
                       "in scans. Check your API key, or the market may have changed its API.")
-    else:
+    elif not fails:
         console.print("[green]Everything answers as expected.[/]")
 
 

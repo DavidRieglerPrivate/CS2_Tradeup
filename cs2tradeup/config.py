@@ -30,7 +30,7 @@ DEFAULTS: dict = {
     "rate_limits": {"csfloat": 3.0, "dmarket": 5.0, "waxpeer": 0.3, "skinport": 0.025},
     "scan": {
         "top_candidates": 15, "max_results": 10, "min_roi": 0.0,
-        "max_contract_cost": 0, "fetch_float_slack": 2.0,
+        "max_contract_cost": 0, "fetch_float_slack": 2.0, "confirm_top": 3,
     },
 }
 

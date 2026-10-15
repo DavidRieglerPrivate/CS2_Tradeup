@@ -87,8 +87,9 @@ def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], tar
                                         log=console.print if verbose else (lambda *a: None))
             out.deep_ran = True
             found = sorted(found, key=lambda r: -r.profit)
-            # listings sell while the scan runs: re-check the ones about to be shown
-            shown = int(cfg["scan"]["max_results"])
+            # listings sell while the scan runs: re-check the best few. CSFloat checks cost one request per
+            # listing out of a 200-request window, so not every result shown is re-checked.
+            shown = int(cfg["scan"].get("confirm_top", 3))
             with console.status("Checking that the chosen listings are still for sale..."):
                 confirmed, out.sold = await confirm_listings(cat, pb, markets, found[:shown])
             found = sorted(await _refine(pb, http, confirmed + found[shown:]), key=lambda r: -r.profit)
@@ -123,7 +124,7 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
                 msg = (f"Looked at {len(ls)} listings, but no combination reaches that condition. "
                        "Try a worse condition, other skins, or let the program choose how many of each.")
                 if fetcher.errors:
-                    msg += f" ({len(fetcher.errors)} market request(s) failed.)"
+                    msg += f" ({len(fetcher.errors)} market request(s) failed, e.g. {fetcher.errors[0]})"
                 return None, msg
             res.label = f"Best buy for output float <= {max_out:.6f}"
             with console.status("Checking that the chosen listings are still for sale..."):
@@ -133,6 +134,9 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
                               "reaches that condition right now. Try again in a moment.")
             res = (await _refine(pb, http, confirmed))[0]
             note = f" {sold} listing(s) had sold or changed price and were replaced." if sold else ""
+            if fetcher.errors:
+                note += (f" Warning: {len(fetcher.errors)} market request(s) failed, so a cheaper set may exist "
+                         f"(e.g. {fetcher.errors[0]}).")
             return res, f"Checked {len(ls)} listings with {http.requests_made} requests.{note}"
         finally:
             await http.close()
@@ -215,6 +219,13 @@ def run_doctor(cfg: Config, cat: Catalog) -> list[Check]:
                 cheapest = min((l.price for l in ls), default=None)
                 detail = (f"{len(ls)} listings of {DOCTOR_SKIN} at float <= {DOCTOR_MAX_FLOAT}"
                           + (f", cheapest ${cheapest:.2f}" if cheapest else ""))
+                q = live.quota.get(m.name)
+                if q:
+                    from datetime import datetime
+
+                    detail += (f"; {q['remaining']}" + (f" of {q['limit']}" if q["limit"] else "")
+                               + " requests left" + (f", resets {datetime.fromtimestamp(q['reset_at']):%H:%M}"
+                                                     if q["reset_at"] else ""))
                 checks.append(Check(m.name, "fail" if problems else "ok",
                                     "; ".join(problems) + (f" ({detail})" if problems else "") or detail))
             return checks

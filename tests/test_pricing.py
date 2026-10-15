@@ -92,3 +92,43 @@ def test_risk_numbers():
     assert r.big_loss_chance == 0.5
     assert r.runs_needed == 68            # ceil((1.645 * 50 / 10) ** 2)
     assert Result(None, [outcome(1.0, 30.0)], cost=40.0, ev=30.0, missing_prices=0).runs_needed is None
+
+
+def test_used_up_quota_skips_the_market_instead_of_stalling(tmp_path):
+    import asyncio
+    import time
+
+    import httpx
+    import pytest
+
+    from cs2tradeup.http import Http, HttpError
+
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.path)
+        if req.url.path == "/limited":   # CSFloat-style: window resets in 20 minutes
+            return httpx.Response(429, headers={"x-ratelimit-limit": "200", "x-ratelimit-remaining": "0",
+                                                "x-ratelimit-reset": str(int(time.time()) + 1200)})
+        return httpx.Response(200, json={"ok": True}, headers={"x-ratelimit-limit": "200",
+                                                                "x-ratelimit-remaining": "1",
+                                                                "x-ratelimit-reset": str(int(time.time()) + 900)})
+
+    async def run():
+        h = Http({"cf": 100.0, "other": 100.0}, cache_dir=tmp_path)
+        h.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        t0 = time.monotonic()
+        with pytest.raises(HttpError) as e:
+            await h.get_json("cf", "https://x/limited")
+        assert e.value.status == 429 and "resets at" in str(e.value)
+        with pytest.raises(HttpError):              # no request sent while blocked
+            await h.get_json("cf", "https://x/ok")
+        assert await h.get_json("other", "https://x/ok") == {"ok": True}   # other markets keep going
+        assert h.quota["other"]["remaining"] == 1 and h.quota["other"]["limit"] == 200
+        with pytest.raises(HttpError):              # 1 left with a 15-minute reset: blocked after this one
+            await h.get_json("other", "https://x/ok")
+        assert time.monotonic() - t0 < 5
+        await h.client.aclose()
+
+    asyncio.run(run())
+    assert calls == ["/limited", "/ok"]

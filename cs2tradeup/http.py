@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import time
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -12,6 +13,8 @@ import httpx
 from .config import CACHE_DIR
 
 UA = "cs2tradeup/0.1 (+personal trade-up scanner)"
+# Longest wait for a rate limit to clear; a market that needs longer is skipped until its reset.
+MAX_WAIT = 90.0
 
 
 class RateLimiter:
@@ -48,6 +51,8 @@ class Http:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.verbose = verbose
         self.requests_made = 0
+        self.quota: dict[str, dict] = {}            # last x-ratelimit-* headers seen per market
+        self.blocked_until: dict[str, float] = {}   # market -> time its used-up quota resets
 
     async def close(self) -> None:
         await self.client.aclose()
@@ -85,6 +90,8 @@ class Http:
             hit = self.cache_get(cache_key, ttl)
             if hit is not None:
                 return hit
+        if self.blocked_until.get(market, 0) > time.time():
+            raise HttpError(self._blocked_message(market), 429)
         limiter = self.limiters.get(market)
         if params:
             url = str(httpx.URL(url, params=params))
@@ -104,8 +111,14 @@ class Http:
                 delay *= 2
                 continue
             self.requests_made += 1
+            self._record_quota(market, r)
             if r.status_code == 429 or r.status_code >= 500:
                 wait = _retry_after(r) or delay
+                if r.status_code == 429 and wait > MAX_WAIT:
+                    # e.g. CSFloat's 200-request window: waiting it out would stall the whole scan
+                    self._block(market, wait)
+                    raise HttpError(self._blocked_message(market), 429)
+                wait = min(wait, MAX_WAIT)
                 if limiter:
                     limiter.penalize(wait)
                 if self.verbose:
@@ -116,7 +129,7 @@ class Http:
                 delay *= 2
                 continue
             if limiter:
-                _respect_quota(r, limiter, market, self.verbose)
+                self._respect_quota(r, limiter, market)
             if r.status_code >= 400:
                 raise HttpError(f"{market}: HTTP {r.status_code}: {r.text[:200]}", r.status_code)
             data = r.json()
@@ -125,24 +138,42 @@ class Http:
             return data
         raise HttpError(f"{market}: request failed")
 
+    # ------------------------------------------------------------------ quotas
+    def _record_quota(self, market: str, r: httpx.Response) -> None:
+        try:
+            remaining = int(r.headers["x-ratelimit-remaining"])
+        except (KeyError, ValueError):
+            return
+        limit = r.headers.get("x-ratelimit-limit")
+        wait = _retry_after(r, body=False)
+        self.quota[market] = {"remaining": remaining, "limit": int(limit) if limit and limit.isdigit() else None,
+                              "reset_at": time.time() + wait if wait else None}
 
-def _respect_quota(r: httpx.Response, limiter: RateLimiter, market: str, verbose: bool) -> None:
-    """If the server says the quota is (almost) used up, hold further requests until it resets."""
-    rem = r.headers.get("x-ratelimit-remaining")
-    if rem is None:
-        return
-    try:
-        remaining = int(rem)
-    except ValueError:
-        return
-    if remaining <= 1:
-        wait = _retry_after(r) or 60.0
-        if verbose:
+    def _block(self, market: str, seconds: float) -> None:
+        self.blocked_until[market] = time.time() + seconds
+        if self.verbose:
+            print(f"[{market}] request limit used up, skipping it for {seconds / 60:.0f} min")
+
+    def _blocked_message(self, market: str) -> str:
+        until = datetime.fromtimestamp(self.blocked_until[market])
+        return f"{market}: request limit used up, it resets at {until:%H:%M}; skipped until then"
+
+    def _respect_quota(self, r: httpx.Response, limiter: RateLimiter, market: str) -> None:
+        """If the server says the quota is (almost) used up, hold or skip further requests until it resets."""
+        q = self.quota.get(market)
+        if not q or q["remaining"] > 1:
+            return
+        wait = _retry_after(r, body=False) or 60.0
+        if wait > MAX_WAIT:
+            self._block(market, wait)
+            return
+        if self.verbose:
             print(f"[{market}] quota exhausted, pausing {wait:.0f}s")
         limiter.penalize(wait)
 
 
-def _retry_after(r: httpx.Response) -> float | None:
+def _retry_after(r: httpx.Response, body: bool = True) -> float | None:
+    """Seconds until the server accepts requests again, from headers (or the error body if `body`)."""
     for h in ("retry-after", "x-ratelimit-reset", "ratelimit-reset"):
         v = r.headers.get(h)
         if not v:
@@ -153,7 +184,9 @@ def _retry_after(r: httpx.Response) -> float | None:
             continue
         if val > 1e9:  # epoch timestamp
             val = val - time.time()
-        return max(1.0, min(val, 300.0))
+        return max(1.0, val)
+    if not body:
+        return None
     try:
         ms = r.json().get("msBeforeNext")
         if ms:
