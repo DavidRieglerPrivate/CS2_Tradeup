@@ -1,0 +1,54 @@
+{
+ "success": true,
+ "items": [
+  {
+   "name": "★ Karambit | Doppler (Factory New)",
+   "count": 374,
+   "min": 1174663,
+   "steam_price": 1687260,
+   "type": "Knives",
+   "rarity_color": "#eb4b4b",
+   "rarity": "Covert"
+  },
+  {
+   "name": "Souvenir AK-47 | Redline (Field-Tested)",
+   "count": 3,
+   "min": 108161,
+   "steam_price": 73640,
+   "img": "https://images.waxpeer.com/i/730-souvenir-ak-47-redline-field-tested.webp",
+   "type": "Rifles",
+   "rarity_color": "#d32ce6",
+   "rarity": "Classified"
+  },
+  {
+   "name": "AWP | Asiimov (Field-Tested)",
+   "count": 192,
+   "min": 98614,
+   "steam_price": 127420,
+   "img": "https://images.waxpeer.com/i/730-awp-asiimov-field-tested.webp",
+   "type": "Rifles",
+   "rarity_color": "#eb4b4b",
+   "rarity": "Covert"
+  },
+  {
+   "name": "AK-47 | Redline (Field-Tested)",
+   "count": 549,
+   "min": 26826,
+   "steam_price": 32310,
+   "img": "https://images.waxpeer.com/i/730-ak-47-redline-field-tested.webp",
+   "type": "Rifles",
+   "rarity_color": "#d32ce6",
+   "rarity": "Classified"
+  },
+  {
+   "name": "Glock-18 | Gamma Doppler (Factory New)",
+   "count": 263,
+   "min": 91560,
+   "steam_price": 109600,
+   "img": "https://steamcommunity-a.akamaihd.net/economy/image/class/730/7993042996",
+   "type": "Pistols",
+   "rarity_color": "#eb4b4b",
+   "rarity": "Covert"
+  }
+ ]
+}

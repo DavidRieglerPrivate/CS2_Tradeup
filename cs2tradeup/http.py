@@ -34,7 +34,9 @@ class RateLimiter:
 
 
 class HttpError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status   # HTTP status when the server answered, None for network errors
 
 
 class Http:
@@ -109,14 +111,14 @@ class Http:
                 if self.verbose:
                     print(f"[{market}] HTTP {r.status_code}, waiting {wait:.0f}s")
                 if attempt == retries:
-                    raise HttpError(f"{market}: HTTP {r.status_code} after {retries} retries")
+                    raise HttpError(f"{market}: HTTP {r.status_code} after {retries} retries", r.status_code)
                 await asyncio.sleep(wait)
                 delay *= 2
                 continue
             if limiter:
                 _respect_quota(r, limiter, market, self.verbose)
             if r.status_code >= 400:
-                raise HttpError(f"{market}: HTTP {r.status_code}: {r.text[:200]}")
+                raise HttpError(f"{market}: HTTP {r.status_code}: {r.text[:200]}", r.status_code)
             data = r.json()
             if cache_key and ttl:
                 self.cache_put(cache_key, data)

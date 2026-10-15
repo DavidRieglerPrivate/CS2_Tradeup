@@ -1,6 +1,7 @@
 """Market adapters. Each returns individual listings (with floats) in one common format."""
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from urllib.parse import quote
@@ -71,6 +72,13 @@ class Market:
     async def listings(self, skin: Skin, stattrak: bool, souvenir: bool, max_float: float) -> list[Listing]:
         raise NotImplementedError
 
+    async def gone(self, listings: list[Listing]) -> set[str]:
+        """IDs of listings that were sold, delisted or repriced since they were fetched.
+
+        A listing the market can't confirm either way (request failed) is not reported as gone.
+        """
+        return set()
+
 
 class CSFloat(Market):
     """https://csfloat.com/api/v1/listings - needs an API key (Authorization header)."""
@@ -111,6 +119,19 @@ class CSFloat(Market):
             if not cursor or len(rows) < 50:
                 break
         return out
+
+    async def gone(self, listings):
+        async def one(l: Listing) -> str | None:
+            try:
+                row = await self.http.get_json(self.name, f"{self.URL}/{l.listing_id}",
+                                               headers={"Authorization": self.cfg.key("csfloat")})
+            except HttpError as e:
+                return l.listing_id if e.status in (400, 404, 410) else None   # unknown resource = gone
+            if row.get("state") != "listed" or row.get("price") / 100 != l.price:
+                return l.listing_id
+            return None
+
+        return {r for r in await asyncio.gather(*(one(l) for l in listings)) if r}
 
 
 class DMarket(Market):
@@ -179,6 +200,34 @@ class DMarket(Market):
                 break
         return out
 
+    async def gone(self, listings):
+        # DMarket has no lookup by offer id: search again in each listing's own float bucket
+        groups: dict[tuple, list[Listing]] = {}
+        for l in listings:
+            groups.setdefault((l.skin.id, l.stattrak, l.souvenir), []).append(l)
+
+        async def one(group: list[Listing]) -> set[str]:
+            l0 = group[0]
+            category = "stattrak_tm" if l0.stattrak else "souvenir" if l0.souvenir else "normal"
+            parts = sorted({p for l in group for p in dmarket_float_parts(l.float_value, l.float_value)})
+            params = {"gameId": "a8db", "title": market_hash_name(l0.skin, None, l0.stattrak, l0.souvenir),
+                      "limit": 100, "orderBy": "price", "orderDir": "asc", "offerType": "all",
+                      "treeFilters": ",".join([f"category={category}"] + [f"floatPart[]={p}" for p in parts])}
+            live: dict[str, float] = {}
+            try:
+                for _ in range(5):
+                    data = await self.http.get_json(self.name, self.BASE + self.PATH, params=params, sign=self._sign)
+                    items = data.get("items", [])
+                    live.update({it.get("offerId"): int(it["priceCents"]) / 100 for it in items})
+                    if all(l.listing_id in live for l in group) or not data.get("cursor") or len(items) < 100:
+                        break
+                    params["cursor"] = data["cursor"]
+            except HttpError:
+                return set()
+            return {l.listing_id for l in group if live.get(l.listing_id) != l.price}
+
+        return set().union(*await asyncio.gather(*(one(g) for g in groups.values()))) if groups else set()
+
 
 class Waxpeer(Market):
     """https://api.waxpeer.com/v1/get-items-list - API key as query param, 20 req/min.
@@ -218,15 +267,31 @@ class Waxpeer(Market):
                     fl = row.get("float")
                     if fl is None or fl > max_float:
                         continue
+                    locked = bool(row.get("unlock_at"))   # only sent for held items, with include_hold
+                    if locked and not self.include_locked:
+                        continue
                     found += 1
                     out.append(self._listing(
                         listing_id=str(row["item_id"]), skin=skin, name=name,
                         float_value=float(fl), price=row["price"] / 1000, stattrak=stattrak, souvenir=souvenir,
-                        trade_locked=bool(row.get("unlock_at")),
+                        trade_locked=locked,
                         link=f"https://waxpeer.com/?game=csgo&search={quote(name)}#item_id={row['item_id']}"))
                 if found >= self.WANTED or len(rows) < self.PAGE:
                     break
         return out
+
+    async def gone(self, listings):
+        ids = [l.listing_id for l in listings]
+        live: dict[str, float] = {}
+        try:
+            for i in range(0, len(ids), 50):
+                data = await self.http.get_json(self.name, "https://api.waxpeer.com/v1/check-availability",
+                                                params={"api": self.cfg.key("waxpeer"), "item_id": ids[i:i + 50]})
+                # sold or unknown items are simply left out of the answer
+                live.update({str(r["item_id"]): r["price"] / 1000 for r in data.get("items", []) if r.get("selling")})
+        except HttpError:
+            return set()
+        return {l.listing_id for l in listings if live.get(l.listing_id) != l.price}
 
 
 MARKETS = {"csfloat": CSFloat, "dmarket": DMarket, "waxpeer": Waxpeer}

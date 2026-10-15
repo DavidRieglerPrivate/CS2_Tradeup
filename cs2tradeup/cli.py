@@ -180,6 +180,8 @@ def scan(
         return
     if out.errors:
         console.print(f"[yellow]{len(out.errors)} market request(s) failed:[/] " + "; ".join(out.errors[:3]))
+    if out.sold:
+        console.print(f"[dim]{out.sold} chosen listing(s) sold or changed price during the scan and were replaced.[/]")
     console.print(f"\n[bold]{len(out.results)} contract(s) at or above {min_roi * 100:.1f}% ROI[/] "
                   f"({out.requests} API requests)")
     for i, r in enumerate(out.results[:results], 1):

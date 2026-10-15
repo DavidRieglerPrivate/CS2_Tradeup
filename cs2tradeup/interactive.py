@@ -204,6 +204,8 @@ def action_scan(cat: Catalog) -> None:
         return
     if out.errors:
         console.print(f"[yellow]{len(out.errors)} market request(s) failed, results may be incomplete.[/]")
+    if out.sold:
+        console.print(f"[dim]{out.sold} chosen listing(s) sold during the scan and were replaced.[/]")
     if not out.results:
         console.print("[yellow]None of the checked trade-ups make money with the listings available right "
                       "now. Try again later, another rarity, or untick 'only profitable' to see the closest "

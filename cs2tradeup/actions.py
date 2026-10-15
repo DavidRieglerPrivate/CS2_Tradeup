@@ -11,7 +11,7 @@ from .engine import Contract
 from .evaluate import Result, evaluate
 from .http import Http
 from .markets import build_markets
-from .optimizer import Group, Problem, solve
+from .optimizer import Group, Problem, confirm_listings, solve
 from .pricing import PriceBook
 from .scanner import ListingFetcher, coarse_candidates, deep_scan, fetch_group_listings
 from .wear import wear_of
@@ -24,6 +24,7 @@ class ScanOutcome:
     deep_ran: bool = False
     requests: int = 0
     errors: list[str] = field(default_factory=list)
+    sold: int = 0   # chosen listings that sold or changed price during the scan
 
 
 async def _prices(cfg: Config, http: Http) -> PriceBook:
@@ -49,7 +50,7 @@ async def _refine(pb: PriceBook, http: Http, results: list[Result]) -> list[Resu
     out = []
     for r in results:
         nr = evaluate(r.contract, pb)
-        nr.label, nr.listings, nr.optimal = r.label, r.listings, r.optimal
+        nr.label, nr.listings, nr.optimal, nr.problem = r.label, r.listings, r.optimal, r.problem
         out.append(nr)
     return out
 
@@ -85,7 +86,12 @@ def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], tar
                 found = await deep_scan(cat, pb, cfg, fetcher, out.candidates[:top], souvenir,
                                         log=console.print if verbose else (lambda *a: None))
             out.deep_ran = True
-            found = sorted(await _refine(pb, http, found), key=lambda r: -r.profit)
+            found = sorted(found, key=lambda r: -r.profit)
+            # listings sell while the scan runs: re-check the ones about to be shown
+            shown = int(cfg["scan"]["max_results"])
+            with console.status("Checking that the chosen listings are still for sale..."):
+                confirmed, out.sold = await confirm_listings(cat, pb, markets, found[:shown])
+            found = sorted(await _refine(pb, http, confirmed + found[shown:]), key=lambda r: -r.profit)
             out.results = [r for r in found if r.roi >= min_roi]
             out.errors = fetcher.errors
             out.requests = http.requests_made
@@ -120,8 +126,14 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
                     msg += f" ({len(fetcher.errors)} market request(s) failed.)"
                 return None, msg
             res.label = f"Best buy for output float <= {max_out:.6f}"
-            res = (await _refine(pb, http, [res]))[0]
-            return res, f"Checked {len(ls)} listings with {http.requests_made} requests."
+            with console.status("Checking that the chosen listings are still for sale..."):
+                confirmed, sold = await confirm_listings(cat, pb, markets, [res])
+            if not confirmed:
+                return None, (f"The best listings sold while searching ({sold} gone), and no other combination "
+                              "reaches that condition right now. Try again in a moment.")
+            res = (await _refine(pb, http, confirmed))[0]
+            note = f" {sold} listing(s) had sold or changed price and were replaced." if sold else ""
+            return res, f"Checked {len(ls)} listings with {http.requests_made} requests.{note}"
         finally:
             await http.close()
 

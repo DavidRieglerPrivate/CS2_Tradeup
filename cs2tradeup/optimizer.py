@@ -181,4 +181,49 @@ def _solve_once(catalog, prices, prob, cands, bounds, values, group_of, n, shrin
     res = evaluate(contract, prices)
     res.optimal = status == cp_model.OPTIMAL
     res.listings = chosen
+    res.problem = prob
     return res
+
+
+async def confirm_listings(catalog: Catalog, prices: PriceBook, markets: list, results: list[Result],
+                           rounds: int = 3) -> tuple[list[Result], int]:
+    """Re-check that every chosen listing is still for sale at its price; re-solve around the ones that aren't.
+
+    Returns (results that still work, number of sold/changed listings found). A result whose re-solve
+    finds nothing is dropped.
+    """
+    by_name = {m.name: m for m in markets}
+    alive: set[tuple[str, str]] = set()
+    dead: set[tuple[str, str]] = set()
+    out: list[Result] = []
+    for res in results:
+        cur = res
+        for _ in range(rounds):
+            todo: dict[str, list[Listing]] = defaultdict(list)
+            for l in cur.listings:
+                if (l.market, l.listing_id) not in alive | dead and l.market in by_name:
+                    todo[l.market].append(l)
+            for market, ls in todo.items():
+                gone = await by_name[market].gone(ls)
+                for l in ls:
+                    (dead if l.listing_id in gone else alive).add((l.market, l.listing_id))
+            if not any((l.market, l.listing_id) in dead for l in cur.listings):
+                break
+            if cur.problem is None:
+                cur = None
+                break
+            prob = cur.problem
+            remaining = [l for l in prob.listings if (l.market, l.listing_id) not in dead]
+            new = solve(catalog, prices, Problem(prob.tier, prob.stattrak, prob.max_output_float, remaining,
+                                                 groups=prob.groups, objective=prob.objective,
+                                                 max_cost=prob.max_cost, formula=prob.formula))
+            if new is None:
+                cur = None
+                break
+            new.label = cur.label
+            cur = new
+        else:
+            cur = None   # still changing after every round: don't show it
+        if cur is not None:
+            out.append(cur)
+    return out, len(dead)

@@ -1,0 +1,527 @@
+[
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Sapphire",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_30_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_90_days": {
+   "min": 3912.46,
+   "max": 4130.39,
+   "avg": 4066.07,
+   "median": 4095.83,
+   "volume": 5
+  }
+ },
+ {
+  "market_hash_name": "Glock-18 | Gamma Doppler (Factory New)",
+  "version": "Phase 3",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/glock-18-gamma-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Gamma%20Doppler&cat=Pistol&type=Glock-18",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": 89.02,
+   "max": 89.02,
+   "avg": 89.02,
+   "median": 89.02,
+   "volume": 1
+  },
+  "last_30_days": {
+   "min": 80.57,
+   "max": 188.53,
+   "avg": 103.14,
+   "median": 98.31,
+   "volume": 15
+  },
+  "last_90_days": {
+   "min": 80.57,
+   "max": 188.53,
+   "avg": 115.03,
+   "median": 110.84,
+   "volume": 51
+  }
+ },
+ {
+  "market_hash_name": "Souvenir AK-47 | Redline (Field-Tested)",
+  "version": null,
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/souvenir-ak-47-redline-field-tested",
+  "market_page": "https://skinport.com/market?item=Redline&cat=Rifle&type=AK-47",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_30_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_90_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  }
+ },
+ {
+  "market_hash_name": "AK-47 | Redline (Field-Tested)",
+  "version": null,
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/ak-47-redline-field-tested",
+  "market_page": "https://skinport.com/market?item=Redline&cat=Rifle&type=AK-47",
+  "last_24_hours": {
+   "min": 24.59,
+   "max": 43.08,
+   "avg": 28.1,
+   "median": 24.88,
+   "volume": 6
+  },
+  "last_7_days": {
+   "min": 23.51,
+   "max": 167.93,
+   "avg": 31.95,
+   "median": 26.8,
+   "volume": 73
+  },
+  "last_30_days": {
+   "min": 18.85,
+   "max": 2123.04,
+   "avg": 38.43,
+   "median": 27.21,
+   "volume": 342
+  },
+  "last_90_days": {
+   "min": 18.85,
+   "max": 2123.04,
+   "avg": 45.41,
+   "median": 29.56,
+   "volume": 953
+  }
+ },
+ {
+  "market_hash_name": "AWP | Asiimov (Field-Tested)",
+  "version": null,
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/awp-asiimov-field-tested",
+  "market_page": "https://skinport.com/market?item=Asiimov&cat=Rifle&type=AWP",
+  "last_24_hours": {
+   "min": 91.41,
+   "max": 99.96,
+   "avg": 95.98,
+   "median": 96.27,
+   "volume": 4
+  },
+  "last_7_days": {
+   "min": 89.53,
+   "max": 176.64,
+   "avg": 104.95,
+   "median": 98.45,
+   "volume": 36
+  },
+  "last_30_days": {
+   "min": 81.73,
+   "max": 282.6,
+   "avg": 104.16,
+   "median": 100.76,
+   "volume": 159
+  },
+  "last_90_days": {
+   "min": 78.37,
+   "max": 514.99,
+   "avg": 112.16,
+   "median": 105.62,
+   "volume": 452
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Phase 4",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": 1188.17,
+   "max": 1188.17,
+   "avg": 1188.17,
+   "median": 1188.17,
+   "volume": 1
+  },
+  "last_7_days": {
+   "min": 1018.05,
+   "max": 1286.3,
+   "avg": 1161.63,
+   "median": 1171.09,
+   "volume": 4
+  },
+  "last_30_days": {
+   "min": 1018.05,
+   "max": 1384.09,
+   "avg": 1233.13,
+   "median": 1253.38,
+   "volume": 35
+  },
+  "last_90_days": {
+   "min": 1018.05,
+   "max": 1667.41,
+   "avg": 1311.36,
+   "median": 1288.38,
+   "volume": 107
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Phase 3",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": 1153.75,
+   "max": 1164.67,
+   "avg": 1159.22,
+   "median": 1159.2,
+   "volume": 2
+  },
+  "last_7_days": {
+   "min": 1108.79,
+   "max": 1209.11,
+   "avg": 1151.7,
+   "median": 1153.75,
+   "volume": 5
+  },
+  "last_30_days": {
+   "min": 993.25,
+   "max": 1380.2,
+   "avg": 1168.68,
+   "median": 1173.47,
+   "volume": 40
+  },
+  "last_90_days": {
+   "min": 912.53,
+   "max": 1795.48,
+   "avg": 1223.69,
+   "median": 1207.49,
+   "volume": 88
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Phase 1",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": 1109.12,
+   "max": 1109.12,
+   "avg": 1109.12,
+   "median": 1109.12,
+   "volume": 1
+  },
+  "last_7_days": {
+   "min": 1087.86,
+   "max": 1298.43,
+   "avg": 1189.19,
+   "median": 1191.2,
+   "volume": 9
+  },
+  "last_30_days": {
+   "min": 1087.86,
+   "max": 1566.25,
+   "avg": 1221.46,
+   "median": 1219.1,
+   "volume": 49
+  },
+  "last_90_days": {
+   "min": 1087.86,
+   "max": 1596.24,
+   "avg": 1272.93,
+   "median": 1284.68,
+   "volume": 110
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Phase 2",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": 1662.25,
+   "max": 1662.25,
+   "avg": 1662.25,
+   "median": 1662.25,
+   "volume": 1
+  },
+  "last_7_days": {
+   "min": 1455.65,
+   "max": 1666.42,
+   "avg": 1575.12,
+   "median": 1589.2,
+   "volume": 4
+  },
+  "last_30_days": {
+   "min": 1455.65,
+   "max": 1822.12,
+   "avg": 1695.89,
+   "median": 1718.93,
+   "volume": 20
+  },
+  "last_90_days": {
+   "min": 1455.65,
+   "max": 2349.94,
+   "avg": 1791.85,
+   "median": 1791.28,
+   "volume": 65
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Black Pearl",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_30_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_90_days": {
+   "min": 9572.15,
+   "max": 9572.15,
+   "avg": 9572.15,
+   "median": 9572.15,
+   "volume": 1
+  }
+ },
+ {
+  "market_hash_name": "★ Karambit | Doppler (Factory New)",
+  "version": "Ruby",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/karambit-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Doppler&cat=Knife&type=Karambit",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_30_days": {
+   "min": 7087.34,
+   "max": 7182.91,
+   "avg": 7135.13,
+   "median": 7135.13,
+   "volume": 2
+  },
+  "last_90_days": {
+   "min": 6960.3,
+   "max": 8116.68,
+   "avg": 7279.63,
+   "median": 7087.34,
+   "volume": 5
+  }
+ },
+ {
+  "market_hash_name": "Glock-18 | Gamma Doppler (Factory New)",
+  "version": "Phase 4",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/glock-18-gamma-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Gamma%20Doppler&cat=Pistol&type=Glock-18",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": 95.15,
+   "max": 200.4,
+   "avg": 147.78,
+   "median": 147.78,
+   "volume": 2
+  },
+  "last_30_days": {
+   "min": 88.74,
+   "max": 200.4,
+   "avg": 102.53,
+   "median": 95.07,
+   "volume": 14
+  },
+  "last_90_days": {
+   "min": 88.74,
+   "max": 200.4,
+   "avg": 109.08,
+   "median": 105.69,
+   "volume": 36
+  }
+ },
+ {
+  "market_hash_name": "Glock-18 | Gamma Doppler (Factory New)",
+  "version": "Phase 2",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/glock-18-gamma-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Gamma%20Doppler&cat=Pistol&type=Glock-18",
+  "last_24_hours": {
+   "min": 104.11,
+   "max": 104.11,
+   "avg": 104.11,
+   "median": 104.11,
+   "volume": 1
+  },
+  "last_7_days": {
+   "min": 99.53,
+   "max": 110.84,
+   "avg": 104.5,
+   "median": 102.93,
+   "volume": 6
+  },
+  "last_30_days": {
+   "min": 79.52,
+   "max": 134.35,
+   "avg": 106.08,
+   "median": 106.73,
+   "volume": 35
+  },
+  "last_90_days": {
+   "min": 79.52,
+   "max": 148.24,
+   "avg": 116.48,
+   "median": 116.11,
+   "volume": 83
+  }
+ },
+ {
+  "market_hash_name": "Glock-18 | Gamma Doppler (Factory New)",
+  "version": "Phase 1",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/glock-18-gamma-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Gamma%20Doppler&cat=Pistol&type=Glock-18",
+  "last_24_hours": {
+   "min": 102.97,
+   "max": 102.97,
+   "avg": 102.97,
+   "median": 102.97,
+   "volume": 1
+  },
+  "last_7_days": {
+   "min": 85.87,
+   "max": 104.68,
+   "avg": 95.56,
+   "median": 95.35,
+   "volume": 8
+  },
+  "last_30_days": {
+   "min": 85.87,
+   "max": 167.93,
+   "avg": 103.13,
+   "median": 99.61,
+   "volume": 24
+  },
+  "last_90_days": {
+   "min": 85.87,
+   "max": 167.93,
+   "avg": 114.72,
+   "median": 115.13,
+   "volume": 64
+  }
+ },
+ {
+  "market_hash_name": "Glock-18 | Gamma Doppler (Factory New)",
+  "version": "Emerald",
+  "currency": "USD",
+  "item_page": "https://skinport.com/item/glock-18-gamma-doppler-factory-new",
+  "market_page": "https://skinport.com/market?item=Gamma%20Doppler&cat=Pistol&type=Glock-18",
+  "last_24_hours": {
+   "min": null,
+   "max": null,
+   "avg": null,
+   "median": null,
+   "volume": 0
+  },
+  "last_7_days": {
+   "min": 389.09,
+   "max": 402.68,
+   "avg": 397.9,
+   "median": 401.92,
+   "volume": 3
+  },
+  "last_30_days": {
+   "min": 389.09,
+   "max": 523.11,
+   "avg": 442.71,
+   "median": 414.23,
+   "volume": 10
+  },
+  "last_90_days": {
+   "min": 380.98,
+   "max": 718.46,
+   "avg": 494.63,
+   "median": 485.41,
+   "volume": 38
+  }
+ }
+]

@@ -1,0 +1,60 @@
+{
+ "success": true,
+ "count": 101,
+ "items": [
+  {
+   "item_id": "53768912666",
+   "brand": "rifle",
+   "type": "AK-47",
+   "price": 26826,
+   "name": "AK-47 | Redline (Field-Tested)",
+   "float": 0.36529430747032166,
+   "best_deals": 16968,
+   "discount": 0,
+   "steam_price": 43794,
+   "phase": "",
+   "partner_price": 26826
+  },
+  {
+   "item_id": "53774779351",
+   "brand": "rifle",
+   "type": "AK-47",
+   "price": 26826,
+   "name": "AK-47 | Redline (Field-Tested)",
+   "float": 0.3419654965400696,
+   "best_deals": 16968,
+   "discount": 0,
+   "steam_price": 43794,
+   "phase": "",
+   "partner_price": 26826
+  },
+  {
+   "item_id": "53775460183",
+   "brand": "rifle",
+   "type": "AK-47",
+   "price": 26826,
+   "name": "AK-47 | Redline (Field-Tested)",
+   "float": 0.34767910838127136,
+   "best_deals": 16968,
+   "discount": 0,
+   "steam_price": 43794,
+   "phase": "",
+   "partner_price": 26826
+  },
+  {
+   "item_id": "54119949443",
+   "brand": "rifle",
+   "type": "AK-47",
+   "price": 26639,
+   "name": "AK-47 | Redline (Field-Tested)",
+   "float": 0.2537003755569458,
+   "best_deals": 17155,
+   "discount": 0,
+   "steam_price": 43794,
+   "phase": "",
+   "partner_price": 26639,
+   "unlock_at": "2026-10-17T15:00:00Z",
+   "send_until": "2026-10-18T03:00:00Z"
+  }
+ ]
+}

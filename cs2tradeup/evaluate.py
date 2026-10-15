@@ -23,6 +23,7 @@ class Result:
     optimal: bool = True    # solver proved this is the best selection
     listings: list = field(default_factory=list)
     label: str = ""
+    problem: object = None  # the optimizer Problem this came from, so it can be re-solved without sold listings
 
     @property
     def profit(self) -> float:
