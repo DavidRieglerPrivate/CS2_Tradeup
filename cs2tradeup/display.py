@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import sys
+import time
+from datetime import datetime
 
 from rich.console import Console
 from rich.panel import Panel
@@ -150,6 +152,45 @@ def results_overview(results: list[Result]) -> None:
                   f"[{'green' if r.profit >= 0 else 'red'}]{signed_money(r.profit)} ({pct(r.roi)})[/]",
                   f"{r.profit_chance * 100:.0f}%", f"±{money(r.spread)}", verdict(r)[0])
     console.print(t)
+
+
+def _clock(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def progress_text(cov, deadline: float | None) -> str:
+    """One status line while a scan asks the markets."""
+    if cov.solving:
+        return f"Picking the best skins for {cov.solving} checked ideas..."
+    parts = [f"Checked {cov.checked} of {cov.ideas} ideas ({cov.skins_done}/{cov.skins} skins)"]
+    if cov.slow_searched or cov.slow_unreached:
+        parts.append(f"Waxpeer {cov.slow_searched} searched, {cov.slow_unreached} queued")
+    if cov.waiting:
+        parts.append(f"waiting for {cov.waiting[0]}'s request limit to reset at "
+                     f"{datetime.fromtimestamp(cov.waiting[1]):%H:%M}")
+    parts.append(f"{_clock(deadline - time.time())} left" if deadline else f"{_clock(cov.seconds)} so far")
+    return " · ".join(parts)
+
+
+def coverage_lines(cov) -> list[str]:
+    """What a finished scan looked at and what it had to leave out, in plain words."""
+    lines = [f"Checked real listings for {cov.checked} of {cov.ideas} ideas in {_clock(cov.seconds)} min."]
+    if cov.checked < cov.ideas:
+        lines.append(f"[yellow]Time ran out before the other {cov.ideas - cov.checked} ideas (the ones with the "
+                     "lowest estimates). Run the scan again within the listing cache time to continue where "
+                     "this one stopped, or pick a longer search.[/]")
+    skipped = cov.slow_skipped_none + cov.slow_skipped_price
+    if cov.slow_searched or skipped:
+        line = (f"Waxpeer: {cov.slow_searched} searches; {cov.slow_skipped_none} skipped because nothing is listed, "
+                f"{cov.slow_skipped_price} because its cheapest listing cost more than enough already found")
+        if cov.slow_unreached:
+            line += f"; [yellow]{cov.slow_unreached} not reached in time[/]"
+        lines.append(line + ".")
+    for market, n in cov.limited.items():
+        lines.append(f"[yellow]{market} request limit used up: {n} skin(s) were checked without {market} "
+                     "listings.[/]")
+    return lines
 
 
 def coarse_table(cands, top: int) -> None:

@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from .catalog import Catalog, market_hash_name
 from .config import Config
-from .display import coarse_table, console
+from .display import coarse_table, console, progress_text
 from .engine import Contract
 from .evaluate import Result, evaluate
 from .http import Http
 from .markets import build_markets
 from .optimizer import Group, Problem, confirm_listings, solve
 from .pricing import PriceBook
-from .scanner import ListingFetcher, coarse_candidates, deep_scan, fetch_group_listings
+from .scanner import Coverage, ListingFetcher, coarse_candidates, deep_scan, fetch_group_listings
 from .wear import wear_of
 
 
@@ -25,11 +27,14 @@ class ScanOutcome:
     requests: int = 0
     errors: list[str] = field(default_factory=list)
     sold: int = 0   # chosen listings that sold or changed price during the scan
+    coverage: Coverage | None = None
+    confirmed: int = 0   # best results whose listings were re-checked before showing them
 
 
 async def _prices(cfg: Config, http: Http) -> PriceBook:
     pb = PriceBook(cfg)
     with console.status("Loading current prices from Skinport and Waxpeer..."):
+        http.prune_cache()
         await pb.load(http)
     return pb
 
@@ -50,7 +55,8 @@ async def _refine(pb: PriceBook, http: Http, results: list[Result]) -> list[Resu
     out = []
     for r in results:
         nr = evaluate(r.contract, pb)
-        nr.label, nr.listings, nr.optimal, nr.problem = r.label, r.listings, r.optimal, r.problem
+        nr.label, nr.listings, nr.optimal, nr.problem, nr.confirmed = (r.label, r.listings, r.optimal,
+                                                                       r.problem, r.confirmed)
         out.append(nr)
     return out
 
@@ -64,8 +70,10 @@ def markets_status(cfg: Config) -> dict[str, bool]:
 
 
 def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], targets: list[tuple[str, float]],
-             souvenir: bool, top: int, min_roi: float, coarse_only: bool = False, verbose: bool = False,
-             show_coarse: bool = True) -> ScanOutcome:
+             souvenir: bool, top: int | None, min_roi: float, coarse_only: bool = False, verbose: bool = False,
+             show_coarse: bool = True, time_limit: float | None = None) -> ScanOutcome:
+    """`top` caps how many ideas get a real-listing check (None/0 = all, most promising first);
+    `time_limit` (minutes, None/0 = none) stops asking markets after that long."""
     async def run() -> ScanOutcome:
         out = ScanOutcome()
         http = Http(cfg["rate_limits"], verbose=verbose)
@@ -73,25 +81,29 @@ def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], tar
             pb = await _prices(cfg, http)
             out.candidates = coarse_candidates(cat, pb, cfg, tiers, modes, targets, souvenir)
             if show_coarse:
-                coarse_table(out.candidates, top)
+                coarse_table(out.candidates, top or 20)
             if coarse_only or not out.candidates:
                 return out
             markets = build_markets(http, cfg)
             if not markets:
                 return out
             fetcher = ListingFetcher(markets, log=console.print if verbose else (lambda *a: None), prices=pb)
-            with console.status(f"Checking real listings on {', '.join(m.name for m in markets)} for the best "
-                                f"{min(top, len(out.candidates))} ideas. Markets limit how fast we can ask, "
-                                "so this can take a few minutes..."):
-                found = await deep_scan(cat, pb, cfg, fetcher, out.candidates[:top], souvenir,
-                                        log=console.print if verbose else (lambda *a: None))
+            ideas = out.candidates[:top] if top else out.candidates
+            deadline = time.time() + time_limit * 60 if time_limit else None
+            with console.status(f"Checking real listings for {len(ideas)} ideas...") as status:
+                found, out.coverage = await deep_scan(
+                    cat, pb, cfg, fetcher, ideas, souvenir, log=console.print if verbose else (lambda *a: None),
+                    deadline=deadline, progress=lambda cov: status.update(progress_text(cov, deadline)))
             out.deep_ran = True
             found = sorted(found, key=lambda r: -r.profit)
-            # listings sell while the scan runs: re-check the best few. CSFloat checks cost one request per
-            # listing out of a 200-request window, so not every result shown is re-checked.
+            # listings sell while the scan runs (and cached ones may be up to listing_cache_minutes old):
+            # re-check the best few. CSFloat checks cost one request per listing, so not every result is re-checked.
             shown = int(cfg["scan"].get("confirm_top", 3))
             with console.status("Checking that the chosen listings are still for sale..."):
                 confirmed, out.sold = await confirm_listings(cat, pb, markets, found[:shown])
+            for r in confirmed:
+                r.confirmed = True
+            out.confirmed = len(confirmed)
             found = sorted(await _refine(pb, http, confirmed + found[shown:]), key=lambda r: -r.profit)
             out.results = [r for r in found if r.roi >= min_roi]
             out.errors = fetcher.errors
@@ -101,6 +113,36 @@ def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], tar
             await http.close()
 
     return asyncio.run(run())
+
+
+def run_recheck(cfg: Config, cat: Catalog, res: Result) -> tuple[Result | None, int]:
+    """Re-check one result's listings right before buying (sold ones are replaced). Returns (result, sold)."""
+    async def run():
+        http = Http(cfg["rate_limits"])
+        try:
+            pb = await _prices(cfg, http)
+            with console.status("Checking that these listings are still for sale..."):
+                confirmed, sold = await confirm_listings(cat, pb, build_markets(http, cfg), [res])
+            if not confirmed:
+                return None, sold
+            new = (await _refine(pb, http, confirmed))[0]
+            new.confirmed = True
+            return new, sold
+        finally:
+            await http.close()
+
+    return asyncio.run(run())
+
+
+def limited_note(fetcher: ListingFetcher, markets: list) -> str:
+    """' CSFloat's request limit ...' for markets that skipped skins because their limit was used up."""
+    note = ""
+    for name, n in fetcher.limited_counts().items():
+        m = next(m for m in markets if m.name == name)
+        reset = m.resume_at()
+        when = f", it resets at {datetime.fromtimestamp(reset):%H:%M}" if reset else ""
+        note += f" {name}'s request limit is used up{when}, so {n} skin(s) were searched without it."
+    return note
 
 
 def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stattrak: bool, max_out: float,
@@ -125,7 +167,7 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
                        "Try a worse condition, other skins, or let the program choose how many of each.")
                 if fetcher.errors:
                     msg += f" ({len(fetcher.errors)} market request(s) failed, e.g. {fetcher.errors[0]})"
-                return None, msg
+                return None, msg + limited_note(fetcher, markets)
             res.label = f"Best buy for output float <= {max_out:.6f}"
             with console.status("Checking that the chosen listings are still for sale..."):
                 confirmed, sold = await confirm_listings(cat, pb, markets, [res])
@@ -133,7 +175,9 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
                 return None, (f"The best listings sold while searching ({sold} gone), and no other combination "
                               "reaches that condition right now. Try again in a moment.")
             res = (await _refine(pb, http, confirmed))[0]
+            res.confirmed = True
             note = f" {sold} listing(s) had sold or changed price and were replaced." if sold else ""
+            note += limited_note(fetcher, markets)
             if fetcher.errors:
                 note += (f" Warning: {len(fetcher.errors)} market request(s) failed, so a cheaper set may exist "
                          f"(e.g. {fetcher.errors[0]}).")

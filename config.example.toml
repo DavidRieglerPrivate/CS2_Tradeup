@@ -48,12 +48,15 @@ include_trade_locked = false   # Waxpeer/DMarket listings still under Steam trad
 
 [rate_limits]   # requests per second
 csfloat = 3.0      # bursts are fine, but the quota is 200 requests per window (x-ratelimit-* headers)
-dmarket = 5.0      # measured: 30 requests/second
-waxpeer = 0.3      # documented: 20 per minute for search-by-name
+dmarket = 10.0     # measured: 30 requests/second; 2026-10-16: 160 requests at 20/s, no 429
+waxpeer = 3.0      # get-items-list measured 2026-10-16: 150 requests at 5/s, no 429 (20/min is search-by-name)
 skinport = 0.025   # documented: 8 per 5 minutes
 
 [scan]
-top_candidates = 15          # how many coarse candidates get a deep (per-listing) check
+top_candidates = 0           # 0 = check every idea on real listings (most promising first); N = only the best N
+time_limit_minutes = 10      # `tradeup scan` stops asking markets after this long (0 = no limit)
+listing_cache_minutes = 30   # listings are reused this long, so repeated scans pick up where the last one ended
+csfloat_reserve = 30         # CSFloat requests kept back from scanning for re-checking chosen listings
 max_results = 10
 min_roi = 0.0                # 0.05 = only show contracts with >= 5% expected ROI
 max_contract_cost = 0        # USD, 0 = no limit

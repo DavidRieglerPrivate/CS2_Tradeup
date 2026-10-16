@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
+import heapq
+import itertools
 import json
 import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -15,21 +19,47 @@ from .config import CACHE_DIR
 UA = "cs2tradeup/0.1 (+personal trade-up scanner)"
 # Longest wait for a rate limit to clear; a market that needs longer is skipped until its reset.
 MAX_WAIT = 90.0
+# After this many 429 answers in a row a market is blocked for STRIKE_BLOCK seconds, doubling with every
+# further 429 up to STRIKE_BLOCK_MAX, whatever its headers say.
+STRIKES = 3
+STRIKE_BLOCK = 120.0
+STRIKE_BLOCK_MAX = 1800.0
+# Cache files older than this are deleted; a full scan writes over a thousand listing pages.
+CACHE_MAX_AGE = 24 * 3600
+
+
+# Lower is served first. A scan sets it per idea rank, so the follow-up pages of a promising idea's skins
+# don't queue behind the first pages of thousands of worse ideas. Tasks inherit it from their creator.
+PRIORITY: contextvars.ContextVar[int] = contextvars.ContextVar("request_priority", default=0)
 
 
 class RateLimiter:
-    """Spaces requests so at most `rate` requests per second are sent."""
+    """Spaces requests so at most `rate` requests per second are sent, most urgent (lowest PRIORITY) first."""
 
     def __init__(self, rate: float):
         self.interval = 1.0 / rate if rate > 0 else 0.0
         self._next = 0.0
-        self._lock = asyncio.Lock()
+        self._waiting: list[tuple[int, int, asyncio.Future]] = []   # heap of (priority, arrival, future)
+        self._arrivals = itertools.count()
+        self._dispatcher: asyncio.Task | None = None
 
     async def wait(self) -> None:
-        async with self._lock:
+        fut = asyncio.get_running_loop().create_future()
+        heapq.heappush(self._waiting, (PRIORITY.get(), next(self._arrivals), fut))
+        if self._dispatcher is None or self._dispatcher.done():
+            self._dispatcher = asyncio.create_task(self._dispatch())
+        await fut
+
+    async def _dispatch(self) -> None:
+        while self._waiting:
             now = time.monotonic()
             if self._next > now:
                 await asyncio.sleep(self._next - now)
+                continue   # penalize() may have moved _next meanwhile
+            _, _, fut = heapq.heappop(self._waiting)
+            if fut.done():   # its request was cancelled while waiting
+                continue
+            fut.set_result(None)
             self._next = max(now, self._next) + self.interval
 
     def penalize(self, seconds: float) -> None:
@@ -51,6 +81,9 @@ class Http:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.verbose = verbose
         self.requests_made = 0
+        self.sent: Counter[str] = Counter()        # requests sent per market
+        self.throttled: Counter[str] = Counter()   # HTTP 429 answers per market
+        self.strikes: Counter[str] = Counter()     # 429 answers in a row per market
         self.quota: dict[str, dict] = {}            # last x-ratelimit-* headers seen per market
         self.blocked_until: dict[str, float] = {}   # market -> time its used-up quota resets
 
@@ -74,6 +107,19 @@ class Http:
         if not 0 <= time.time() - entry["fetched_at"] < ttl:
             return None
         return entry.get("data")
+
+    def prune_cache(self, max_age: float = CACHE_MAX_AGE) -> int:
+        """Delete cache files not written for `max_age` seconds (no TTL is that long). Returns how many."""
+        cutoff = time.time() - max_age
+        removed = 0
+        for p in self.cache_dir.glob("*.json"):
+            try:
+                if p.stat().st_mtime < cutoff:
+                    p.unlink()
+                    removed += 1
+            except OSError:
+                pass
+        return removed
 
     def cache_put(self, key: str, data) -> None:
         try:
@@ -99,6 +145,9 @@ class Http:
         for attempt in range(retries + 1):
             if limiter:
                 await limiter.wait()
+            # checked again after the queue: hundreds of requests can be waiting when a market gets blocked
+            if self.blocked_until.get(market, 0) > time.time():
+                raise HttpError(self._blocked_message(market), 429)
             hdrs = dict(headers or {})
             if sign:
                 hdrs.update(sign(url))
@@ -111,9 +160,19 @@ class Http:
                 delay *= 2
                 continue
             self.requests_made += 1
+            self.sent[market] += 1
+            if r.status_code == 429:
+                self.throttled[market] += 1
+                self.strikes[market] += 1
+            else:
+                self.strikes[market] = 0
             self._record_quota(market, r)
             if r.status_code == 429 or r.status_code >= 500:
                 wait = _retry_after(r) or delay
+                if r.status_code == 429 and self.strikes[market] >= STRIKES:
+                    # still refused after the waits it asked for (CSFloat keeps a reset time that has already
+                    # passed): stop trusting its headers and back off, longer each time
+                    wait = max(wait, min(STRIKE_BLOCK_MAX, STRIKE_BLOCK * 2 ** (self.strikes[market] - STRIKES)))
                 if r.status_code == 429 and wait > MAX_WAIT:
                     # e.g. CSFloat's 200-request window: waiting it out would stall the whole scan
                     self._block(market, wait)

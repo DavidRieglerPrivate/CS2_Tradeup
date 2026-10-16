@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import quote
 
 import httpx
@@ -12,8 +13,6 @@ from .catalog import Skin, market_hash_name
 from .config import Config
 from .http import Http, HttpError
 from .wear import WEARS, possible_wears
-
-LISTING_TTL = 120  # seconds listings stay cached
 
 
 @dataclass
@@ -60,10 +59,17 @@ class Market:
         self.cfg = cfg
         self.buy_fee = float(cfg["buy_fees"].get(self.name, 0.0))
         self.include_locked = bool(cfg["markets"].get("include_trade_locked", False))
+        # listings are reused across scans for this long, so repeated scans don't ask for the same pages again
+        self.listing_ttl = float(cfg["scan"].get("listing_cache_minutes", 30)) * 60
 
     @property
     def available(self) -> bool:
         return True
+
+    def resume_at(self) -> float | None:
+        """When a used-up request limit lets this market answer again (epoch seconds), None if it isn't limited."""
+        t = self.http.blocked_until.get(self.name, 0.0)
+        return t if t > time.time() else None
 
     def _listing(self, **kw) -> Listing:
         kw["cost"] = round(kw["price"] * (1 + self.buy_fee), 4)
@@ -85,11 +91,30 @@ class CSFloat(Market):
     name = "csfloat"
     URL = "https://csfloat.com/api/v1/listings"
 
+    def __init__(self, http: Http, cfg: Config):
+        super().__init__(http, cfg)
+        # the last requests of a window are kept for re-checking chosen listings (one request per listing)
+        self.reserve = int(cfg["scan"].get("csfloat_reserve", 30))
+
     @property
     def available(self) -> bool:
         return bool(self.cfg.key("csfloat"))
 
+    def _reserve_reached(self) -> float | None:
+        """Reset time when the quota is down to the reserve, else None."""
+        q = self.http.quota.get(self.name)
+        if q and q["remaining"] <= self.reserve and q.get("reset_at") and q["reset_at"] > time.time():
+            return q["reset_at"]
+        return None
+
+    def resume_at(self) -> float | None:
+        return super().resume_at() or self._reserve_reached()
+
     async def listings(self, skin, stattrak, souvenir, max_float, pages: int = 2):
+        reset = self._reserve_reached()
+        if reset:
+            raise HttpError(f"csfloat: request limit nearly used up (the last {self.reserve} are kept for "
+                            f"re-checking listings), it resets at {datetime.fromtimestamp(reset):%H:%M}", 429)
         category = 2 if stattrak else 3 if souvenir else 1
         params = {
             "def_index": skin.def_index, "paint_index": skin.paint_index, "category": category,
@@ -102,8 +127,8 @@ class CSFloat(Market):
             if cursor:
                 params["cursor"] = cursor
             key = f"csfloat:{sorted(params.items())}"
-            data = await self.http.get_json(self.name, self.URL, params=params, cache_key=key, ttl=LISTING_TTL,
-                                            headers={"Authorization": self.cfg.key("csfloat")})
+            data = await self.http.get_json(self.name, self.URL, params=params, cache_key=key,
+                                            ttl=self.listing_ttl, headers={"Authorization": self.cfg.key("csfloat")})
             rows = data.get("data", []) if isinstance(data, dict) else data
             for row in rows:
                 item = row.get("item", {})
@@ -171,7 +196,7 @@ class DMarket(Market):
                 params["cursor"] = cursor
             key = f"dmarket:{sorted(params.items())}"
             data = await self.http.get_json(self.name, self.BASE + self.PATH, params=params, cache_key=key,
-                                            ttl=LISTING_TTL, sign=self._sign)
+                                            ttl=self.listing_ttl, sign=self._sign)
             items = data.get("items", [])
             for it in items:
                 attrs = it.get("attributes", {})
@@ -230,7 +255,7 @@ class DMarket(Market):
 
 
 class Waxpeer(Market):
-    """https://api.waxpeer.com/v1/get-items-list - API key as query param, 20 req/min.
+    """https://api.waxpeer.com/v1/get-items-list - API key as query param (no documented limit; 5/s worked).
 
     Waxpeer has no float filter, so listings come cheapest first and are filtered here. A page holds 100
     rows (search-items-by-name stops at 50); more pages are read only while too few rows fit the float band.
@@ -244,9 +269,12 @@ class Waxpeer(Market):
     def available(self) -> bool:
         return bool(self.cfg.key("waxpeer"))
 
-    async def listings(self, skin, stattrak, souvenir, max_float, pages: int = 3):
+    async def listings(self, skin, stattrak, souvenir, max_float, pages: int = 3, wears: list[str] | None = None):
+        """`wears` limits the search to those wear names (each wear is its own search here)."""
         out: list[Listing] = []
         for w in _wears_in_band(skin, max_float):
+            if wears is not None and w not in wears:
+                continue
             name = market_hash_name(skin, w, stattrak, souvenir)
             found = 0
             for page in range(pages):
@@ -255,7 +283,7 @@ class Waxpeer(Market):
                 if self.include_locked:
                     params["include_hold"] = 1
                 data = await self.http.get_json(
-                    self.name, self.URL, params=params, ttl=LISTING_TTL,
+                    self.name, self.URL, params=params, ttl=self.listing_ttl,
                     cache_key=f"waxpeer-list:{name}:{page}:{self.include_locked}")
                 if not data.get("success", True):
                     raise HttpError(f"waxpeer: {data.get('msg')}")

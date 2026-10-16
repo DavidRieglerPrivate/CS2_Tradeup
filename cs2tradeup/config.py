@@ -27,10 +27,11 @@ DEFAULTS: dict = {
     },
     "buy_fees": {"csfloat": 0.0, "dmarket": 0.0, "waxpeer": 0.0, "skinport": 0.0},
     "markets": {"enabled": ["csfloat", "dmarket", "waxpeer"], "include_trade_locked": False},
-    "rate_limits": {"csfloat": 3.0, "dmarket": 5.0, "waxpeer": 0.3, "skinport": 0.025},
+    "rate_limits": {"csfloat": 3.0, "dmarket": 10.0, "waxpeer": 3.0, "skinport": 0.025},
     "scan": {
-        "top_candidates": 15, "max_results": 10, "min_roi": 0.0,
+        "top_candidates": 0, "time_limit_minutes": 10, "max_results": 10, "min_roi": 0.0,
         "max_contract_cost": 0, "fetch_float_slack": 2.0, "confirm_top": 3,
+        "listing_cache_minutes": 30, "csfloat_reserve": 30,
     },
 }
 

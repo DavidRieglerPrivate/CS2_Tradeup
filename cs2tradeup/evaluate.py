@@ -27,6 +27,7 @@ class Result:
     problem: object = None  # the optimizer Problem this came from, so it can be re-solved without sold listings
     sell_fee: float = 0.0
     sell_market: str = ""
+    confirmed: bool = False  # listings were re-checked as still for sale after the scan
 
     @property
     def spread(self) -> float:

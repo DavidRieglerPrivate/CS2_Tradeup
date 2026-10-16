@@ -19,7 +19,7 @@ from rich.table import Table
 from .actions import run_check, run_optimize, run_scan
 from .catalog import Catalog
 from .config import load_config
-from .display import collection_table, console, print_result
+from .display import collection_table, console, coverage_lines, print_result
 from .engine import Contract, ContractError, ContractInput, contract_size
 from .scanner import contract_groups
 from .wear import parse_target
@@ -161,7 +161,9 @@ def scan(
     target: list[str] = typer.Option(["FN", "MW", "FT"], "--target", "-t", help="Target wear(s) or max floats"),
     mode: str = typer.Option("both", help="normal | stattrak | both"),
     souvenir: bool = typer.Option(True, "--souvenir/--no-souvenir", help="Allow Souvenir inputs"),
-    top: Optional[int] = typer.Option(None, help="How many coarse candidates get a deep listing check"),
+    top: Optional[int] = typer.Option(None, help="Only check the best N ideas on real listings (default: all)"),
+    time: Optional[float] = typer.Option(None, "--time",
+                                         help="Minutes to spend asking markets (0 = no limit, default 10)"),
     results: Optional[int] = typer.Option(None, help="How many results to print"),
     min_roi: Optional[float] = typer.Option(None, help="Minimum expected ROI, e.g. 0.05"),
     budget: Optional[float] = typer.Option(None, help="Max total contract cost in USD"),
@@ -173,16 +175,20 @@ def scan(
     cfg = load_config(config)
     if budget is not None:
         cfg["scan"]["max_contract_cost"] = budget
-    top = top or int(cfg["scan"]["top_candidates"])
+    top = int(cfg["scan"]["top_candidates"]) if top is None else top
+    time = float(cfg["scan"]["time_limit_minutes"]) if time is None else time
     results = results or int(cfg["scan"]["max_results"])
     min_roi = float(cfg["scan"]["min_roi"]) if min_roi is None else min_roi
     tiers, modes, targets = scan_settings(cfg, tier, mode, target)
-    out = run_scan(cfg, Catalog(), tiers, modes, targets, souvenir, top, min_roi, coarse_only, verbose)
+    out = run_scan(cfg, Catalog(), tiers, modes, targets, souvenir, top, min_roi, coarse_only, verbose,
+                   time_limit=time)
     if coarse_only:
         return
     if not out.deep_ran:
         console.print("[yellow]No market API keys configured, so real listings were not checked.[/]")
         return
+    for line in coverage_lines(out.coverage):
+        console.print(line)
     if out.errors:
         console.print(f"[yellow]{len(out.errors)} market request(s) failed:[/] " + "; ".join(out.errors[:3]))
     if out.sold:
@@ -200,7 +206,8 @@ def watch(
     target: list[str] = typer.Option(["MW", "FT"], "--target", "-t", help="Target wear(s) or max floats"),
     mode: str = typer.Option("normal", help="normal | stattrak | both"),
     souvenir: bool = typer.Option(True, "--souvenir/--no-souvenir", help="Allow Souvenir inputs"),
-    top: int = typer.Option(10, help="How many coarse candidates get a deep listing check per scan"),
+    top: int = typer.Option(0, help="Only check the best N ideas on real listings per scan (0 = all)"),
+    time: float = typer.Option(15, "--time", help="Minutes each scan may spend asking markets (0 = no limit)"),
     min_roi: float = typer.Option(0.05, help="Alert only at or above this expected ROI"),
     budget: Optional[float] = typer.Option(None, help="Max total contract cost in USD"),
     once: bool = typer.Option(False, "--once", help="Run one scan and exit (for Windows Task Scheduler)"),
@@ -212,7 +219,7 @@ def watch(
     tiers, modes, targets = scan_settings(load_config(config), tier, mode, target)
     try:
         run_watch(lambda: load_config(config), tiers, modes, targets, souvenir, top, min_roi, every,
-                  once=once, budget=budget)
+                  once=once, budget=budget, time_limit=time)
     except KeyboardInterrupt:
         console.print("\nStopped watching.")
 

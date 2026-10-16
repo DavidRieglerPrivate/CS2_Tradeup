@@ -10,10 +10,10 @@ from rich.panel import Panel
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 from rich.table import Table
 
-from .actions import markets_status, run_check, run_optimize, run_scan
+from .actions import markets_status, run_check, run_optimize, run_recheck, run_scan
 from .catalog import COVERT, TIER_NAMES, Catalog, Collection, Skin
 from .config import load_config, save_keys
-from .display import collection_table, console, print_result, results_overview, tier_label
+from .display import collection_table, console, coverage_lines, print_result, results_overview, tier_label
 from .engine import Contract, ContractError, ContractInput, contract_size
 from .evaluate import Result
 from .optimizer import Group
@@ -167,7 +167,7 @@ def offer_links(res: Result) -> None:
             webbrowser.open_new_tab(link)
 
 
-def browse_results(results: list[Result]) -> None:
+def browse_results(results: list[Result], cfg=None, cat: Catalog | None = None) -> None:
     while True:
         results_overview(results)
         raw = Prompt.ask("Type a number to see details and buy links, or press Enter to go back",
@@ -176,6 +176,19 @@ def browse_results(results: list[Result]) -> None:
             return
         if raw.isdigit() and 1 <= int(raw) <= len(results):
             res = results[int(raw) - 1]
+            if not res.confirmed and cfg is not None:
+                # listings can be up to listing_cache_minutes old: make sure they're still for sale first
+                new, sold = run_recheck(cfg, cat, res)
+                if new is None:
+                    console.print(f"[yellow]{sold} of these listings sold, and no replacement reaches the same "
+                                  "condition. This trade-up is gone, pick another one.[/]")
+                    results.pop(int(raw) - 1)
+                    if not results:
+                        return
+                    continue
+                if sold:
+                    console.print(f"[dim]{sold} listing(s) had sold or changed price and were replaced.[/]")
+                res = results[int(raw) - 1] = new
             print_result(res, int(raw))
             offer_links(res)
             Prompt.ask("Press Enter to return to the list", default="")
@@ -188,9 +201,10 @@ def action_scan(cat: Catalog) -> None:
     cfg = load_config()
     connected = [k for k, v in markets_status(cfg).items() if v]
     console.print(Panel(
-        "The program looks through every collection for trade-ups that make money, using current market "
-        "prices. Then it checks real listings and their floats for the best ideas and picks the exact skins "
-        "to buy.", title="Find profitable trade-ups", border_style="cyan"))
+        "The program estimates every possible trade-up from current market prices, then checks real listings "
+        "and their floats for all of them, most promising first, and picks the exact skins to buy. Markets "
+        "limit how fast we can ask, so you choose how long it may take.",
+        title="Find profitable trade-ups", border_style="cyan"))
     if not connected:
         console.print("[yellow]No market API keys are set, so you'll only get a quick estimate without buy "
                       "links. Use menu option 5 to add keys.[/]")
@@ -202,17 +216,19 @@ def action_scan(cat: Catalog) -> None:
     m = choose("StatTrak™?", [("Normal only", ""), ("StatTrak™ only", ""), ("Both", "takes longer")], default=3)
     modes = {1: [False], 2: [True], 3: [False, True]}[m]
     budget = ask_money("Maximum you want to spend on one trade-up in USD (press Enter for no limit)")
-    depth = choose("How thorough should the search be?", [
-        ("Quick", "about 1-2 minutes, checks the 5 best ideas"),
-        ("Normal", "about 3-5 minutes, checks 10"),
-        ("Thorough", "about 10 minutes, checks 20"),
+    depth = choose("How long may the search take? Ideas are checked most promising first; a scan that runs "
+                   "out of time says how many it covered.", [
+        ("Quick", "up to 2 minutes"),
+        ("Normal", "up to 5 minutes"),
+        ("Thorough", "up to 15 minutes"),
+        ("Complete", "every idea on every market; can take an hour or more"),
     ], default=2)
-    top = {1: 5, 2: 10, 3: 20}[depth]
+    time_limit = {1: 2, 2: 5, 3: 15, 4: None}[depth]
     only_profit = Confirm.ask("Only show trade-ups that make money on average?", default=True)
 
     if budget:
         cfg["scan"]["max_contract_cost"] = budget
-    out = run_scan(cfg, cat, tiers, modes, targets, souvenir=True, top=top,
+    out = run_scan(cfg, cat, tiers, modes, targets, souvenir=True, top=None, time_limit=time_limit,
                    min_roi=0.0 if only_profit else -1.0, coarse_only=not connected, show_coarse=not connected)
     if not out.candidates:
         console.print("[yellow]No ideas matched those settings. Try a higher budget or another rarity.[/]")
@@ -220,6 +236,8 @@ def action_scan(cat: Catalog) -> None:
     if not out.deep_ran:
         console.print("[dim]These are estimates only. Add API keys (option 5) to check real listings.[/]")
         return
+    for line in coverage_lines(out.coverage):
+        console.print(line)
     if out.errors:
         console.print(f"[yellow]{len(out.errors)} market request(s) failed, results may be incomplete.[/]")
     if out.sold:
@@ -229,7 +247,9 @@ def action_scan(cat: Catalog) -> None:
                       "now. Try again later, another rarity, or untick 'only profitable' to see the closest "
                       "ones.[/]")
         return
-    browse_results(out.results)
+    console.print(f"[dim]The best {out.confirmed} were re-checked as still for sale; any other one is "
+                  "re-checked when you open it.[/]")
+    browse_results(out.results, cfg, cat)
 
 
 def action_build(cat: Catalog) -> None:

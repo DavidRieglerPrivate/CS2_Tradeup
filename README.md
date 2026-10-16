@@ -23,8 +23,9 @@ The selling fee is CSFloat's 2% by default: set `sell_fee` and `sell_market` in 
 market you actually sell on (Skinport 8%, Steam 15%).
 
 Each result also shows how much one trade-up swings around its average, the chance of getting back less
-than half, and how many repeats it takes to be about 95% sure of coming out ahead. Right before buy
-links are shown, every chosen listing is checked again; sold or repriced ones are replaced.
+than half, and how many repeats it takes to be about 95% sure of coming out ahead. The best 3 results are
+re-checked as still for sale before the list is shown, and any other result is re-checked when you open it;
+sold or repriced listings are replaced.
 
 ## Setup for the command line
 
@@ -61,13 +62,15 @@ tradeup optimize -i "AK-47 | Redline=3" -i "col:Huntsman=7" -t MW
 tradeup optimize -i "col:Chroma 2=10" --tier restricted -t 0.149999
 tradeup optimize -i "col:Wildfire=2-5" -i "col:Breakout" --tier covert -t FT --objective profit
 
-# Scan everything: coarse pass on bulk prices, deep pass on real listings for the best candidates
-tradeup scan --coarse-only                     # no keys needed
-tradeup scan --tier restricted --tier classified -t MW -t FT --mode both --top 15 --min-roi 0.05
+# Scan everything: estimate every idea from bulk prices, then check all of them on real listings
+tradeup scan --coarse-only                     # estimates only, no keys needed
+tradeup scan --tier restricted --tier classified -t MW -t FT --mode both --min-roi 0.05
+tradeup scan --tier classified --time 0        # no time limit: every idea on every market
+tradeup scan --tier classified --top 20        # only the 20 best estimates (the old behaviour)
 tradeup scan --tier covert -t FT --budget 600  # knife/glove contracts under $600
 
 # Scan every hour and get a Windows notification for each new contract at >= 5% expected ROI
-tradeup watch --every 60 --tier restricted --tier classified -t MW -t FT --min-roi 0.05
+tradeup watch --every 60 --time 15 --tier restricted --tier classified -t MW -t FT --min-roi 0.05
 tradeup watch --once ...                       # a single pass, for Windows Task Scheduler
 
 # Check that every price source and market still answers in a format the program understands
@@ -83,6 +86,53 @@ stops returning listings; the doctor reports that as FAIL.
 
 Input specs for `optimize`: `"Skin=3"` exactly 3, `"Skin"` any number, `"col:Name=7"` 7 from a
 collection, `"col:Name=2-5"` between 2 and 5. Targets are `FN/MW/FT/WW/BS` or a maximum float.
+
+## How a scan covers every idea
+
+1. **Estimate every idea.** An idea is one collection x rarity x normal/StatTrak x target wear. Each is
+   estimated from the Skinport and Waxpeer bulk price lists (a few requests in total) and ranked by
+   estimated return.
+2. **Check every idea on real listings, most promising first.** For each input skin, CSFloat and DMarket
+   are asked first. Waxpeer has no float filter and needs one search per wear, so it is then searched
+   only for the wears where its bulk price list shows something that could matter. A wear is skipped
+   when nothing is listed there, or when Waxpeer's cheapest listing in it costs more than the 10th
+   cheapest listing (5th for Covert -> knife) of the same skin and wear already found elsewhere.
+   A contract uses at most that many of one skin, so a pricier Waxpeer listing could only help
+   through a lower float, and Waxpeer's cheapest-first results rarely bring that.
+3. **Pick the exact skins** for every idea that was checked, plus the best mix of collections per
+   rarity, StatTrak and target.
+
+The scan stops asking markets at its time limit (menu: Quick 2 min, Normal 5, Thorough 15, Complete
+no limit; `tradeup scan --time`, default 10 minutes). An idea counts as checked once all its input
+skins were asked on CSFloat and DMarket; ideas not reached are left out of the results, and the
+summary after the scan says how many ideas were checked, how many Waxpeer searches were made or skipped,
+and which market ran out of requests.
+
+**Listings are kept for 30 minutes** (`listing_cache_minutes`), so a second scan with the same settings
+answers the ideas already checked from the cache and spends its time on the ones the first scan didn't
+reach. This is also why a re-check happens before you buy: the best 3 results are re-checked
+automatically, any other one when you open it. Cache files older than a day are deleted at the start
+of every scan.
+
+**CSFloat** allows 200 requests per window. The scan stops using it when only 30 are left
+(`csfloat_reserve`), so re-checking chosen listings still works. Skins asked while CSFloat was
+unavailable are asked again once the window resets, if that happens before the time limit; otherwise
+they are checked with DMarket and Waxpeer listings only, and the summary says how many. Resets have
+been seen 2 hours apart, so CSFloat covers only about 100-170 skins per window; a full Classified scan
+needs about 350, so most of it runs on DMarket and Waxpeer.
+
+**Rate limits.** Each market's requests are spaced by `[rate_limits]` and served by idea rank, so the
+second and third result pages of a promising idea don't wait behind the first pages of every worse
+one. A market that keeps answering "too many requests" (HTTP 429) even after the waits it asked for is
+blocked for 2 minutes, then 4, 8 and so on up to 30, with one test request after each block.
+
+Measured on 2026-10-16:
+- Classified -> Covert, FN/MW/FT, normal and StatTrak (301 ideas, 351 skins): finished in 5.5 minutes,
+  about 1,330 Waxpeer searches made and 240 skipped.
+- All gun rarities (about 1,250 ideas, 3,200 skins), empty cache: about 260 ideas checked in the first
+  3 minutes. DMarket (10 requests a second) sets how fast ideas get checked; Waxpeer's searches
+  (3 a second) make a full pass take roughly half an hour, or several shorter scans in a row thanks to
+  the listing cache.
 
 ## How the math works
 
@@ -116,15 +166,16 @@ report it.
 
 ## Market notes
 
-- **CSFloat** allows 200 requests per window (it resets within the hour). When it's used up, scans
-  carry on with the other markets and say when CSFloat is back; `tradeup doctor` shows how many requests
-  are left. Re-checking listings before showing them costs one CSFloat request per listing, so only the
-  best `confirm_top` results (default 3) are re-checked.
+- **CSFloat** allows 200 requests per window (resets have been seen 2 hours apart). Scans keep the last 30 for
+  re-checks and carry on with the other markets, asking CSFloat again after the reset when time allows;
+  `tradeup doctor` shows how many requests are left. Re-checking listings costs one CSFloat request per
+  listing, so only the best `confirm_top` results (default 3) are re-checked right after a scan.
 
 - **DMarket** is searched by its float buckets (`floatPart`, e.g. FT-0 = 0.15-0.18), so cheap high-float
   offers don't crowd out the low floats a contract needs.
 - **Waxpeer** has no float filter: listings come cheapest first, up to 3 pages of 100 per wear, so very
-  low floats in a popular wear can be missed there. Trade-held items are left out unless
+  low floats in a popular wear can be missed there. Scans skip wear searches that can't beat what the
+  other markets already offer (see above). Trade-held items are left out unless
   `include_trade_locked = true`.
 - **Souvenir** searches are skipped for skins with no Souvenir listing in the Skinport or Waxpeer bulk
   data, which saves about half the requests. A Souvenir sold only on CSFloat or DMarket is missed.

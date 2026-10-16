@@ -16,7 +16,7 @@ from pathlib import Path
 from .actions import run_scan
 from .catalog import Catalog
 from .config import DATA_DIR, Config
-from .display import console, contract_kind, money, pct, print_result, signed_money
+from .display import console, contract_kind, coverage_lines, money, pct, print_result, signed_money
 from .evaluate import Result
 
 SEEN_FILE = DATA_DIR / "alerts_seen.json"
@@ -89,7 +89,7 @@ def notify(title: str, text: str) -> None:
 
 
 def watch(cfg_loader, tiers, modes, targets, souvenir: bool, top: int, min_roi: float, every_minutes: float,
-          once: bool = False, budget: float | None = None) -> None:
+          once: bool = False, budget: float | None = None, time_limit: float | None = None) -> None:
     cat = Catalog()
     seen = load_seen()
     while True:
@@ -99,7 +99,8 @@ def watch(cfg_loader, tiers, modes, targets, souvenir: bool, top: int, min_roi: 
         started = datetime.now()
         console.rule(f"[bold]Scan {started:%H:%M}[/]")
         try:
-            out = run_scan(cfg, cat, tiers, modes, targets, souvenir, top, min_roi, show_coarse=False)
+            out = run_scan(cfg, cat, tiers, modes, targets, souvenir, top, min_roi, show_coarse=False,
+                           time_limit=time_limit)
         except Exception as e:   # a failed pass (network, API) must not end an overnight watch
             console.print(f"[red]Scan failed:[/] {e}")
             out = None
@@ -107,6 +108,8 @@ def watch(cfg_loader, tiers, modes, targets, souvenir: bool, top: int, min_roi: 
             if not out.deep_ran:
                 console.print("[red]No market API keys are set, so watch can't check real listings.[/]")
                 return
+            for line in coverage_lines(out.coverage) if out.coverage else []:
+                console.print(line)
             fresh = new_results(out.results, seen)
             for r in fresh:
                 print_result(r)
