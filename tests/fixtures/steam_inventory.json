@@ -1,0 +1,925 @@
+{
+ "assets": [
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "47956730608",
+   "classid": "241576692",
+   "instanceid": "302028390",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "47366849065",
+   "classid": "7993036716",
+   "instanceid": "519977179",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "46392781671",
+   "classid": "3946324730",
+   "instanceid": "302028390",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "44319851424",
+   "classid": "241581349",
+   "instanceid": "302028390",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "42042808171",
+   "classid": "7993038546",
+   "instanceid": "7105101485",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "37160653852",
+   "classid": "241581542",
+   "instanceid": "302028390",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "37136727351",
+   "classid": "3117298605",
+   "instanceid": "0",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "35684597997",
+   "classid": "5327976158",
+   "instanceid": "188530139",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "30642871257",
+   "classid": "241581349",
+   "instanceid": "302028390",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "54126466314",
+   "classid": "7993043766",
+   "instanceid": "480085569",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "54125517321",
+   "classid": "7993035629",
+   "instanceid": "6276343835",
+   "amount": "1"
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "53239760489",
+   "classid": "7993052765",
+   "instanceid": "6295247624",
+   "amount": "1"
+  }
+ ],
+ "descriptions": [
+  {
+   "appid": 730,
+   "classid": "241576692",
+   "instanceid": "302028390",
+   "tradable": 1,
+   "name": "Tec-9 | Groundwater",
+   "market_hash_name": "Tec-9 | Groundwater (Field-Tested)",
+   "marketable": 1,
+   "type": "Consumer Grade Pistol",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Pistol",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Pistol"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_tec9",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "Tec-9"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_italy",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Italy Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Common_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Consumer Grade",
+     "color": "b0c3d9"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Italy Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "7993036716",
+   "instanceid": "519977179",
+   "tradable": 1,
+   "name": "SG 553 | Bleached",
+   "market_hash_name": "SG 553 | Bleached (Field-Tested)",
+   "marketable": 1,
+   "type": "Consumer Grade Rifle",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Rifle",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Rifle"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_sg556",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "SG 553"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_dust_2_2021",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The 2021 Dust 2 Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Common_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Consumer Grade",
+     "color": "b0c3d9"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The 2021 Dust 2 Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "3946324730",
+   "instanceid": "302028390",
+   "tradable": 1,
+   "name": "Fracture Case",
+   "market_hash_name": "Fracture Case",
+   "marketable": 1,
+   "type": "Base Grade Container",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_WeaponCase",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Container"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_community_26",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Fracture Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Common",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Base Grade",
+     "color": "b0c3d9"
+    }
+   ],
+   "descriptions": []
+  },
+  {
+   "appid": 730,
+   "classid": "241581349",
+   "instanceid": "302028390",
+   "tradable": 1,
+   "name": "MP7 | Army Recon",
+   "market_hash_name": "MP7 | Army Recon (Field-Tested)",
+   "marketable": 1,
+   "type": "Consumer Grade SMG",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_SMG",
+     "localized_category_name": "Type",
+     "localized_tag_name": "SMG"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_mp7",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "MP7"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_safehouse",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Safehouse Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Common_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Consumer Grade",
+     "color": "b0c3d9"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Safehouse Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "7993038546",
+   "instanceid": "7105101485",
+   "tradable": 1,
+   "name": "StatTrak™ AWP | Atheris",
+   "market_hash_name": "StatTrak™ AWP | Atheris (Field-Tested)",
+   "marketable": 1,
+   "type": "StatTrak™ Restricted Sniper Rifle",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_SniperRifle",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Sniper Rifle"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_awp",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "AWP"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_community_22",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Prisma Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "strange",
+     "localized_category_name": "Category",
+     "localized_tag_name": "StatTrak™",
+     "color": "CF6A32"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Mythical_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Restricted",
+     "color": "8847ff"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    },
+    {
+     "category": "Tournament",
+     "internal_name": "Tournament17",
+     "localized_category_name": "Tournament",
+     "localized_tag_name": "2020 RMR"
+    },
+    {
+     "category": "TournamentTeam",
+     "internal_name": "Team81",
+     "localized_category_name": "Team",
+     "localized_tag_name": "Team Spirit"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Prisma Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "241581542",
+   "instanceid": "302028390",
+   "tradable": 1,
+   "name": "P250 | Sand Dune",
+   "market_hash_name": "P250 | Sand Dune (Field-Tested)",
+   "marketable": 1,
+   "type": "Consumer Grade Pistol",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Pistol",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Pistol"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_p250",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "P250"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_dust_2",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Dust 2 Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Common_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Consumer Grade",
+     "color": "b0c3d9"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Dust 2 Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "3117298605",
+   "instanceid": "0",
+   "tradable": 0,
+   "name": "10 Year Veteran Coin",
+   "market_hash_name": "10 Year Veteran Coin",
+   "marketable": 0,
+   "type": "Extraordinary Collectible",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Collectible",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Collectible"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Ancient",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Extraordinary",
+     "color": "eb4b4b"
+    }
+   ],
+   "descriptions": []
+  },
+  {
+   "appid": 730,
+   "classid": "5327976158",
+   "instanceid": "188530139",
+   "tradable": 1,
+   "name": "Sticker | yuurih | Paris 2023",
+   "market_hash_name": "Sticker | yuurih | Paris 2023",
+   "marketable": 1,
+   "type": "High Grade Sticker",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Tool_Sticker",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Sticker"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Rare",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "High Grade",
+     "color": "4b69ff"
+    },
+    {
+     "category": "StickerCategory",
+     "internal_name": "PlayerSignature",
+     "localized_category_name": "Sticker Type",
+     "localized_tag_name": "Player Autograph"
+    },
+    {
+     "category": "Tournament",
+     "internal_name": "Tournament21",
+     "localized_category_name": "Tournament",
+     "localized_tag_name": "BLAST.tv Paris 2023"
+    },
+    {
+     "category": "TournamentTeam",
+     "internal_name": "Team85",
+     "localized_category_name": "Team",
+     "localized_tag_name": "FURIA"
+    },
+    {
+     "category": "ProPlayer",
+     "internal_name": "yuurih",
+     "localized_category_name": "Professional Player",
+     "localized_tag_name": "yuurih (Yuri Boian)"
+    },
+    {
+     "category": "StickerCapsule",
+     "internal_name": "crate_signature_pack_paris2023_group_players_collection",
+     "localized_category_name": "Sticker Collection",
+     "localized_tag_name": "Paris 2023 Player Autographs"
+    }
+   ],
+   "descriptions": []
+  },
+  {
+   "appid": 730,
+   "classid": "7993043766",
+   "instanceid": "480085569",
+   "tradable": 1,
+   "name": "★ Nomad Knife | Doppler",
+   "market_hash_name": "★ Nomad Knife | Doppler (Factory New)",
+   "marketable": 1,
+   "type": "★ Covert Knife",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Knife",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Knife"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_knife_outdoor",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "Nomad Knife"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_community_23",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Shattered Web Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "unusual",
+     "localized_category_name": "Category",
+     "localized_tag_name": "★",
+     "color": "8650AC"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Ancient_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Covert",
+     "color": "eb4b4b"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory0",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Factory New"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Factory New",
+     "name": "exterior_wear"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "7993035629",
+   "instanceid": "6276343835",
+   "tradable": 1,
+   "name": "AK-47 | Slate",
+   "market_hash_name": "AK-47 | Slate (Field-Tested)",
+   "marketable": 1,
+   "type": "Restricted Rifle",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_Rifle",
+     "localized_category_name": "Type",
+     "localized_tag_name": "Rifle"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_ak47",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "AK-47"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_community_28",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Snakebite Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "normal",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Normal"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Mythical_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Restricted",
+     "color": "8847ff"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory2",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Field-Tested"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Field-Tested",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Snakebite Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "classid": "7993052765",
+   "instanceid": "6295247624",
+   "tradable": 1,
+   "name": "Souvenir MAC-10 | Gold Brick",
+   "market_hash_name": "Souvenir MAC-10 | Gold Brick (Well-Worn)",
+   "marketable": 1,
+   "type": "Souvenir Restricted SMG",
+   "tags": [
+    {
+     "category": "Type",
+     "internal_name": "CSGO_Type_SMG",
+     "localized_category_name": "Type",
+     "localized_tag_name": "SMG"
+    },
+    {
+     "category": "Weapon",
+     "internal_name": "weapon_mac10",
+     "localized_category_name": "Weapon",
+     "localized_tag_name": "MAC-10"
+    },
+    {
+     "category": "ItemSet",
+     "internal_name": "set_op10_ancient",
+     "localized_category_name": "Collection",
+     "localized_tag_name": "The Ancient Collection"
+    },
+    {
+     "category": "Quality",
+     "internal_name": "tournament",
+     "localized_category_name": "Category",
+     "localized_tag_name": "Souvenir",
+     "color": "FFD700"
+    },
+    {
+     "category": "Rarity",
+     "internal_name": "Rarity_Mythical_Weapon",
+     "localized_category_name": "Quality",
+     "localized_tag_name": "Restricted",
+     "color": "8847ff"
+    },
+    {
+     "category": "Exterior",
+     "internal_name": "WearCategory3",
+     "localized_category_name": "Exterior",
+     "localized_tag_name": "Well-Worn"
+    },
+    {
+     "category": "Tournament",
+     "internal_name": "Tournament18",
+     "localized_category_name": "Tournament",
+     "localized_tag_name": "2021 PGL Stockholm"
+    },
+    {
+     "category": "TournamentTeam",
+     "internal_name": "Team12",
+     "localized_category_name": "Team",
+     "localized_tag_name": "Natus Vincere"
+    },
+    {
+     "category": "TournamentTeam",
+     "internal_name": "Team95",
+     "localized_category_name": "Team",
+     "localized_tag_name": "HEROIC"
+    }
+   ],
+   "descriptions": [
+    {
+     "type": "html",
+     "value": "Exterior: Well-Worn",
+     "name": "exterior_wear"
+    },
+    {
+     "type": "html",
+     "value": "The Ancient Collection",
+     "color": "9da1a9",
+     "name": "itemset_name"
+    }
+   ]
+  }
+ ],
+ "asset_properties": [
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "47956730608",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "612",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.363306760787963867",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "47366849065",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "579",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.154219642281532288",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "44319851424",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "515",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.355749458074569702",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "42042808171",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "716",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.296892225742340088",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "37160653852",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "29",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.183968409895896912",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "37136727351",
+   "asset_properties": []
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "30642871257",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "521",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.364332705736160278",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "54126466314",
+   "asset_properties": [
+    {
+     "propertyid": 7,
+     "int_value": "420",
+     "name": "Finish Catalog"
+    },
+    {
+     "propertyid": 1,
+     "int_value": "693",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.0495732575654983521",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "54125517321",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "35",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.182761505246162415",
+     "name": "Wear Rating"
+    }
+   ]
+  },
+  {
+   "appid": 730,
+   "contextid": "2",
+   "assetid": "53239760489",
+   "asset_properties": [
+    {
+     "propertyid": 1,
+     "int_value": "770",
+     "name": "Pattern Template"
+    },
+    {
+     "propertyid": 2,
+     "float_value": "0.38278883695602417",
+     "name": "Wear Rating"
+    }
+   ]
+  }
+ ],
+ "total_inventory_count": 12,
+ "success": 1
+}

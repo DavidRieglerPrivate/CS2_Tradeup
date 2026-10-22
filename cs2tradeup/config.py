@@ -12,7 +12,7 @@ DATA_DIR = ROOT / "data"
 CACHE_DIR = DATA_DIR / "cache"
 
 DEFAULTS: dict = {
-    "keys": {"csfloat": "", "waxpeer": "", "dmarket_public": "", "dmarket_secret": ""},
+    "keys": {"csfloat": "", "waxpeer": "", "dmarket_public": "", "dmarket_secret": "", "steam_id": ""},
     "engine": {"float_formula": "normalized", "float_safety_margin": 0.000005},
     "pricing": {
         "median_window": "last_7_days",
@@ -27,7 +27,8 @@ DEFAULTS: dict = {
     },
     "buy_fees": {"csfloat": 0.0, "dmarket": 0.0, "waxpeer": 0.0, "skinport": 0.0},
     "markets": {"enabled": ["csfloat", "dmarket", "waxpeer"], "include_trade_locked": False},
-    "rate_limits": {"csfloat": 3.0, "dmarket": 10.0, "waxpeer": 3.0, "skinport": 0.025},
+    "rate_limits": {"csfloat": 3.0, "dmarket": 10.0, "waxpeer": 3.0, "skinport": 0.025, "steam": 0.5},
+    "inventory": {"owned_cost": "sell"},
     "scan": {
         "top_candidates": 0, "time_limit_minutes": 10, "max_results": 10, "min_roi": 0.0,
         "max_contract_cost": 0, "fetch_float_slack": 2.0, "confirm_top": 3,
@@ -40,6 +41,7 @@ ENV_KEYS = {
     "waxpeer": "WAXPEER_API_KEY",
     "dmarket_public": "DMARKET_PUBLIC_KEY",
     "dmarket_secret": "DMARKET_SECRET_KEY",
+    "steam_id": "STEAM_ID",
 }
 
 

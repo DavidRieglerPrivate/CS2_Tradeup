@@ -12,10 +12,11 @@ from .display import coarse_table, console, progress_text
 from .engine import Contract
 from .evaluate import Result, evaluate
 from .http import Http
-from .markets import build_markets
+from .inventory import fetch_pages, fits, load_owned, resolve_steam_id
+from .markets import OWNED, Listing, build_markets
 from .optimizer import Group, Problem, confirm_listings, solve
 from .pricing import PriceBook
-from .scanner import Coverage, ListingFetcher, coarse_candidates, deep_scan, fetch_group_listings
+from .scanner import Coverage, ListingFetcher, coarse_candidates, deep_scan, fetch_group_listings, owned_first
 from .wear import wear_of
 
 
@@ -29,6 +30,7 @@ class ScanOutcome:
     sold: int = 0   # chosen listings that sold or changed price during the scan
     coverage: Coverage | None = None
     confirmed: int = 0   # best results whose listings were re-checked before showing them
+    owned: int | None = None   # owned skins usable in the scanned rarities (None = inventory not used)
 
 
 async def _prices(cfg: Config, http: Http) -> PriceBook:
@@ -61,6 +63,40 @@ async def _refine(pb: PriceBook, http: Http, results: list[Result]) -> list[Resu
     return out
 
 
+async def _owned(cfg: Config, http: Http, cat: Catalog, pb: PriceBook) -> list[Listing]:
+    with console.status("Reading your Steam inventory..."):
+        owned, _ = await load_owned(http, cfg, cat, pb)
+    return owned
+
+
+def run_inventory(cfg: Config, cat: Catalog, steam_id: str | None = None) -> tuple[list[Listing], int]:
+    """(owned skins usable as trade-up inputs, valued as config says; items in the inventory)."""
+    async def run():
+        http = Http(cfg["rate_limits"])
+        try:
+            pb = await _prices(cfg, http)
+            with console.status("Reading your Steam inventory..."):
+                return await load_owned(http, cfg, cat, pb, steam_id)
+        finally:
+            await http.close()
+
+    return asyncio.run(run())
+
+
+def check_steam_id(cfg: Config, text: str) -> str:
+    """The SteamID64 behind a profile link or name, after making sure its inventory can be read."""
+    async def run():
+        http = Http(cfg["rate_limits"])
+        try:
+            sid = await resolve_steam_id(http, text)
+            await fetch_pages(http, sid)
+            return sid
+        finally:
+            await http.close()
+
+    return asyncio.run(run())
+
+
 def markets_status(cfg: Config) -> dict[str, bool]:
     return {
         "CSFloat": bool(cfg.key("csfloat")),
@@ -71,9 +107,11 @@ def markets_status(cfg: Config) -> dict[str, bool]:
 
 def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], targets: list[tuple[str, float]],
              souvenir: bool, top: int | None, min_roi: float, coarse_only: bool = False, verbose: bool = False,
-             show_coarse: bool = True, time_limit: float | None = None) -> ScanOutcome:
+             show_coarse: bool = True, time_limit: float | None = None,
+             use_inventory: bool = False) -> ScanOutcome:
     """`top` caps how many ideas get a real-listing check (None/0 = all, most promising first);
-    `time_limit` (minutes, None/0 = none) stops asking markets after that long."""
+    `time_limit` (minutes, None/0 = none) stops asking markets after that long. With `use_inventory` the
+    skins in the user's Steam inventory are candidates too, and the ideas they fit are checked first."""
     async def run() -> ScanOutcome:
         out = ScanOutcome()
         http = Http(cfg["rate_limits"], verbose=verbose)
@@ -88,13 +126,21 @@ def run_scan(cfg: Config, cat: Catalog, tiers: list[int], modes: list[bool], tar
             if not markets:
                 return out
             fetcher = ListingFetcher(markets, log=console.print if verbose else (lambda *a: None), prices=pb)
+            owned = []
+            if use_inventory:
+                owned = [l for l in await _owned(cfg, http, cat, pb)
+                         if l.skin.tier in tiers and l.stattrak in modes and (souvenir or not l.souvenir)]
+                out.owned = len(owned)
+                out.candidates = owned_first(out.candidates, owned, cfg, souvenir)
             ideas = out.candidates[:top] if top else out.candidates
             deadline = time.time() + time_limit * 60 if time_limit else None
             with console.status(f"Checking real listings for {len(ideas)} ideas...") as status:
                 found, out.coverage = await deep_scan(
                     cat, pb, cfg, fetcher, ideas, souvenir, log=console.print if verbose else (lambda *a: None),
-                    deadline=deadline, progress=lambda cov: status.update(progress_text(cov, deadline)))
+                    deadline=deadline, progress=lambda cov: status.update(progress_text(cov, deadline)),
+                    owned=owned)
             out.deep_ran = True
+            out.coverage.owned_first = bool(owned)
             found = sorted(found, key=lambda r: -r.profit)
             # listings sell while the scan runs (and cached ones may be up to listing_cache_minutes old):
             # re-check the best few. CSFloat checks cost one request per listing, so not every result is re-checked.
@@ -146,19 +192,27 @@ def limited_note(fetcher: ListingFetcher, markets: list) -> str:
 
 
 def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stattrak: bool, max_out: float,
-                 souvenir: bool, objective: str = "cost", verbose: bool = False) -> tuple[Result | None, str]:
-    """Returns (result, message). result is None when nothing fits; message says why."""
+                 souvenir: bool, objective: str = "cost", verbose: bool = False,
+                 use_inventory: bool = False) -> tuple[Result | None, str]:
+    """Returns (result, message). result is None when nothing fits; message says why.
+    With `use_inventory` the user's own skins of these groups are candidates too."""
     async def run():
         http = Http(cfg["rate_limits"], verbose=verbose)
         try:
             markets = build_markets(http, cfg)
-            if not markets:
+            if not markets and not use_inventory:
                 return None, "No market is connected. Add your API keys first (menu option 5)."
             pb = await _prices(cfg, http)
             fetcher = ListingFetcher(markets, log=console.print if verbose else (lambda *a: None), prices=pb)
             with console.status(f"Searching {', '.join(m.name for m in markets)} for listings. "
                                 "This can take a minute or two..."):
                 ls = await fetch_group_listings(cat, fetcher, groups, tier, stattrak, max_out, cfg, souvenir)
+            mine = []
+            if use_inventory:
+                ids = {sid for g in groups for sid in g.skin_ids}
+                mine = [l for l in await _owned(cfg, http, cat, pb)
+                        if l.skin.id in ids and fits(l, tier, stattrak, souvenir)]
+                ls += mine
             with console.status(f"Finding the best combination among {len(ls)} listings..."):
                 res = solve(cat, pb, Problem(tier, stattrak, max_out, ls, groups=groups, objective=objective,
                                              formula=cfg.float_formula))
@@ -177,6 +231,8 @@ def run_optimize(cfg: Config, cat: Catalog, groups: list[Group], tier: int, stat
             res = (await _refine(pb, http, confirmed))[0]
             res.confirmed = True
             note = f" {sold} listing(s) had sold or changed price and were replaced." if sold else ""
+            if use_inventory:
+                note += f" {len(mine)} of your own skins could go into it."
             note += limited_note(fetcher, markets)
             if fetcher.errors:
                 note += (f" Warning: {len(fetcher.errors)} market request(s) failed, so a cheaper set may exist "
@@ -272,6 +328,16 @@ def run_doctor(cfg: Config, cat: Catalog) -> list[Check]:
                                                      if q["reset_at"] else ""))
                 checks.append(Check(m.name, "fail" if problems else "ok",
                                     "; ".join(problems) + (f" ({detail})" if problems else "") or detail))
+            if not cfg.key("steam_id"):
+                checks.append(Check("Steam inventory", "skip", "no Steam profile set"))
+            else:
+                try:
+                    owned, total = await load_owned(live, cfg, cat, pb)
+                    checks.append(Check("Steam inventory", "ok" if total else "fail",
+                                        f"{total} items, {len(owned)} skins usable in trade-ups"
+                                        if total else "0 items read (the inventory format may have changed)"))
+                except Exception as e:
+                    checks.append(Check("Steam inventory", "fail", str(e)[:150]))
             return checks
         finally:
             await http.close()
@@ -287,7 +353,7 @@ def run_check(cfg: Config, contract: Contract) -> Result:
         try:
             pb = await _prices(cfg, http)
             for inp in contract.inputs:
-                if not inp.price:
+                if not inp.price and inp.source != OWNED:   # an owned skin set to "free" stays free
                     offer = pb.cheapest(inp.skin, wear_of(inp.float_value), contract.stattrak, inp.souvenir)
                     if offer:
                         inp.price, inp.source = offer.price, f"{offer.market} lowest"

@@ -16,16 +16,19 @@ from typing import Optional
 import typer
 from rich.table import Table
 
-from .actions import run_check, run_optimize, run_scan
-from .catalog import Catalog
+from .actions import run_check, run_inventory, run_optimize, run_scan
+from .catalog import Catalog, split_item_name
 from .config import load_config
 from .display import collection_table, console, coverage_lines, print_result
-from .engine import Contract, ContractError, ContractInput, contract_size
-from .scanner import contract_groups
+from .engine import Contract, ContractError, ContractInput
+from .scanner import check_groups, contract_groups
 from .wear import parse_target
 
 app = typer.Typer(add_completion=False, help="CS2 trade-up calculator and cross-market profitability scanner. "
                                              "Run without a command for the guided menu.")
+
+INVENTORY_HELP = ("Also use skins you already own (Steam inventory of steam_id in config.toml), "
+                  "each counted at what it would sell for")
 
 TIER_ALIASES = {
     "consumer": 0, "industrial": 1, "milspec": 2, "mil-spec": 2, "restricted": 3,
@@ -71,14 +74,15 @@ def info(collection: str = typer.Argument(..., help="Collection or case name (pa
     collection_table(Catalog().find_collection(collection))
 
 
-ITEM_RE = re.compile(r"^(?P<name>.+?)@(?P<float>[0-9.]+)(?:x(?P<n>\d+))?$")
+ITEM_RE = re.compile(r"^(?P<name>.+?)\s*@\s*(?P<float>\d*[.,]?\d+)\s*(?:[x×*]\s*(?P<n>\d+))?$", re.I)
 
 
 @app.command()
 def calc(
     item: list[str] = typer.Option(..., "--item", "-i",
                                    help='Input as "Name@float" or "Name@floatxN", e.g. "AK-47 | Redline@0.16x10". '
-                                        'Prefix "souvenir:" for a Souvenir input.'),
+                                        'Prefix "souvenir:" (or "Souvenir ") for a Souvenir input, "StatTrak™ " '
+                                        'for StatTrak; Steam market names with a wear in brackets work too.'),
     stattrak: bool = typer.Option(False, "--stattrak", help="StatTrak contract"),
     no_prices: bool = typer.Option(False, "--no-prices", help="Skip price lookups (works offline)"),
     config: Optional[str] = typer.Option(None, help="Path to config.toml"),
@@ -87,15 +91,21 @@ def calc(
     cfg = load_config(config)
     cat = Catalog()
     inputs = []
+    marked_st = []
     for spec in item:
-        souv = spec.lower().startswith("souvenir:")
-        if souv:
-            spec = spec.split(":", 1)[1]
         m = ITEM_RE.match(spec.strip())
         if not m:
-            raise typer.BadParameter(f"can't parse '{spec}', expected Name@float or Name@floatxN")
-        skin = cat.find_skin(m["name"])
-        inputs += [ContractInput(skin, float(m["float"]), souvenir=souv) for _ in range(int(m["n"] or 1))]
+            raise typer.BadParameter(f"can't parse '{spec}', expected Name@float or Name@floatxN "
+                                     f"(e.g. \"AK-47 | Redline@0.16x10\")")
+        name, st, souv, _ = split_item_name(m["name"])
+        skin = cat.find_skin(name)
+        count = int(m["n"] or 1)
+        inputs += [ContractInput(skin, float(m["float"].replace(",", ".")), souvenir=souv) for _ in range(count)]
+        marked_st += [st] * count
+    if any(marked_st) and not all(marked_st):
+        console.print("[red]Invalid contract:[/] StatTrak™ and normal inputs can't be mixed")
+        raise typer.Exit(1)
+    stattrak = stattrak or all(marked_st)
     try:
         contract = Contract(cat, inputs, stattrak=stattrak, formula=cfg.float_formula)
     except ContractError as e:
@@ -125,6 +135,7 @@ def optimize(
     tier: Optional[str] = typer.Option(None, help="Rarity, needed only when every input is a collection"),
     souvenir: bool = typer.Option(True, "--souvenir/--no-souvenir", help="Allow Souvenir inputs"),
     objective: str = typer.Option("cost", help="cost = cheapest inputs, profit = best expected profit"),
+    inventory: bool = typer.Option(False, "--inventory", help=INVENTORY_HELP),
     config: Optional[str] = typer.Option(None, help="Path to config.toml"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
@@ -133,10 +144,9 @@ def optimize(
     cat = Catalog()
     groups, t = contract_groups(cat, input, parse_tier(tier) if tier else None)
     max_out = parse_target(target, cfg.safety_margin)
-    n = contract_size(t)
-    if sum(g.min_count for g in groups) > n:
-        raise typer.BadParameter(f"group minimums add up to more than the {n} slots of this contract")
-    res, msg = run_optimize(cfg, cat, groups, t, stattrak, max_out, souvenir, objective, verbose)
+    check_groups(cat, groups, t, stattrak)
+    res, msg = run_optimize(cfg, cat, groups, t, stattrak, max_out, souvenir, objective, verbose,
+                            use_inventory=inventory)
     if not res:
         console.print(f"[red]{msg}[/]")
         raise typer.Exit(1)
@@ -168,6 +178,7 @@ def scan(
     min_roi: Optional[float] = typer.Option(None, help="Minimum expected ROI, e.g. 0.05"),
     budget: Optional[float] = typer.Option(None, help="Max total contract cost in USD"),
     coarse_only: bool = typer.Option(False, "--coarse-only", help="Only run the bulk-price pass (no API keys needed)"),
+    inventory: bool = typer.Option(False, "--inventory", help=INVENTORY_HELP),
     config: Optional[str] = typer.Option(None, help="Path to config.toml"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
@@ -181,12 +192,14 @@ def scan(
     min_roi = float(cfg["scan"]["min_roi"]) if min_roi is None else min_roi
     tiers, modes, targets = scan_settings(cfg, tier, mode, target)
     out = run_scan(cfg, Catalog(), tiers, modes, targets, souvenir, top, min_roi, coarse_only, verbose,
-                   time_limit=time)
+                   time_limit=time, use_inventory=inventory and not coarse_only)
     if coarse_only:
         return
     if not out.deep_ran:
         console.print("[yellow]No market API keys configured, so real listings were not checked.[/]")
         return
+    if out.owned is not None:
+        console.print(f"{out.owned} of your own skins fit these settings; ideas they can go into were checked first.")
     for line in coverage_lines(out.coverage):
         console.print(line)
     if out.errors:
@@ -211,6 +224,7 @@ def watch(
     min_roi: float = typer.Option(0.05, help="Alert only at or above this expected ROI"),
     budget: Optional[float] = typer.Option(None, help="Max total contract cost in USD"),
     once: bool = typer.Option(False, "--once", help="Run one scan and exit (for Windows Task Scheduler)"),
+    inventory: bool = typer.Option(False, "--inventory", help=INVENTORY_HELP),
     config: Optional[str] = typer.Option(None, help="Path to config.toml"),
 ):
     """Scan again every few minutes and send a notification when a new profitable contract shows up."""
@@ -219,9 +233,29 @@ def watch(
     tiers, modes, targets = scan_settings(load_config(config), tier, mode, target)
     try:
         run_watch(lambda: load_config(config), tiers, modes, targets, souvenir, top, min_roi, every,
-                  once=once, budget=budget, time_limit=time)
+                  once=once, budget=budget, time_limit=time, use_inventory=inventory)
     except KeyboardInterrupt:
         console.print("\nStopped watching.")
+
+
+@app.command("inventory")
+def inventory_cmd(
+    steam_id: Optional[str] = typer.Option(None, "--steam-id",
+                                           help="Profile link, SteamID64 or profile name (default: steam_id in "
+                                                "config.toml)"),
+    config: Optional[str] = typer.Option(None, help="Path to config.toml"),
+):
+    """List the skins in your Steam inventory that can go into a trade-up, with floats and values."""
+    from .display import inventory_table
+
+    cfg = load_config(config)
+    cat = Catalog()
+    owned, total = run_inventory(cfg, cat, steam_id)
+    inventory_table(cat, owned)
+    free = str(cfg["inventory"].get("owned_cost", "sell")).lower() == "free"
+    console.print(f"{len(owned)} of {total} items can go into a trade-up. Worth = "
+                  + ("0, owned_cost is \"free\" in config.toml." if free else "what each would sell for after the "
+                     "sell fee; that's what using it in a trade-up costs you."))
 
 
 @app.command()
@@ -242,9 +276,11 @@ def main():
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
+    from .inventory import InventoryError
+
     try:
         app()
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError, InventoryError) as e:
         # str(KeyError) wraps the message in quotes
         console.print(f"[red]{e.args[0] if isinstance(e, KeyError) and e.args else e}[/]")
         sys.exit(1)

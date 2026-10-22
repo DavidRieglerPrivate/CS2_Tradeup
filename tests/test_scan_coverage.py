@@ -136,6 +136,7 @@ def test_menu_depth_is_a_time_limit_over_all_ideas(cat, monkeypatch, depth, minu
     monkeypatch.setattr(interactive, "choose", lambda *a, **kw: next(answers))
     monkeypatch.setattr(interactive, "ask_condition", lambda allow_any: [("FT", 0.38)])
     monkeypatch.setattr(interactive, "ask_money", lambda q: None)
+    monkeypatch.setattr(interactive, "ask_use_inventory", lambda: False)
     monkeypatch.setattr(interactive.Confirm, "ask", lambda *a, **kw: True)
     monkeypatch.setattr(interactive, "markets_status", lambda cfg: {"CSFloat": True})
 

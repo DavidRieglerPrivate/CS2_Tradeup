@@ -50,9 +50,13 @@ def parse_target(target: str, margin: float = 0.0) -> float:
     """
     t = target.strip().upper()
     for code, name, lo, hi in WEARS:
-        if t in (code, name.upper()):
+        if t in (code, name.upper(), name.upper().replace("-", " ")):
             return 1.0 if code == "BS" else hi - margin
-    val = float(target)
+    try:
+        val = float(t.replace(",", "."))
+    except ValueError:
+        raise ValueError(f"unknown condition '{target}': use FN, MW, FT, WW, BS or a maximum float "
+                         "like 0.149999") from None
     if not 0.0 < val <= 1.0:
         raise ValueError(f"target float must be in (0, 1], got {val}")
     return val

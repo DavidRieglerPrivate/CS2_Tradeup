@@ -7,6 +7,15 @@ csfloat = ""
 waxpeer = ""
 dmarket_public = ""   # hex public key from DMarket account settings
 dmarket_secret = ""   # hex secret key (128 hex chars)
+# Your Steam profile, to use skins you already own (SteamID64, profile link or custom profile name).
+# The inventory must be public: Steam > Profile > Edit Profile > Privacy Settings > Inventory: Public.
+steam_id = ""
+
+[inventory]
+# What an owned skin costs when a trade-up uses it:
+#   "sell": what it would sell for after the sell fee (you give that money up by using it)
+#   "free": nothing, as if it were a gift (makes contracts with your skins look better than they are)
+owned_cost = "sell"
 
 [engine]
 # "normalized": each input float is scaled to its own skin's range (current CS2 behaviour).
@@ -51,6 +60,7 @@ csfloat = 3.0      # bursts are fine, but the quota is 200 requests per window (
 dmarket = 10.0     # measured: 30 requests/second; 2026-10-16: 160 requests at 20/s, no 429
 waxpeer = 3.0      # get-items-list measured 2026-10-16: 150 requests at 5/s, no 429 (20/min is search-by-name)
 skinport = 0.025   # documented: 8 per 5 minutes
+steam = 0.5        # inventory reads; Steam answers 429 for a while after a burst
 
 [scan]
 top_candidates = 0           # 0 = check every idea on real listings (most promising first); N = only the best N

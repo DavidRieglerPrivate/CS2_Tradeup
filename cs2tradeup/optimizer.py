@@ -16,7 +16,7 @@ from ortools.sat.python import cp_model
 from .catalog import Catalog
 from .engine import Contract, ContractInput, contract_size, max_avg_for, normalize
 from .evaluate import Result, evaluate
-from .markets import Listing
+from .markets import OWNED, Listing
 from .pricing import PriceBook
 from .wear import WEAR_BY_CODE, possible_wears
 
@@ -118,19 +118,21 @@ def solve(catalog: Catalog, prices: PriceBook, prob: Problem, time_limit: float 
             continue
         cands.append(l)
 
-    group_of = {}
+    # a skin can be in several groups ("3 Redlines" and "7 from the Phoenix collection"): each chosen listing
+    # then counts for exactly one of them
+    groups_of: dict[str, tuple[int, ...]] = {}
     for gi, g in enumerate(prob.groups):
         for sid in g.skin_ids:
-            group_of[sid] = gi
+            groups_of[sid] = groups_of.get(sid, ()) + (gi,)
     if prob.groups:
-        cands = [l for l in cands if l.skin.id in group_of]
-    cands = _prune(cands, key=lambda l: (l.skin.collection_id, group_of.get(l.skin.id)), n=n)
+        cands = [l for l in cands if l.skin.id in groups_of]
+    cands = _prune(cands, key=lambda l: (l.skin.collection_id, groups_of.get(l.skin.id)), n=n)
     if len(cands) < n:
         return None
 
     shrink = 0
     for _attempt in range(4):
-        res = _solve_once(catalog, prices, prob, cands, bounds, values, group_of, n, shrink, time_limit)
+        res = _solve_once(catalog, prices, prob, cands, bounds, values, groups_of, n, shrink, time_limit)
         if res is None:
             return None
         mx = res.max_output_float
@@ -140,15 +142,24 @@ def solve(catalog: Catalog, prices: PriceBook, prob: Problem, time_limit: float 
     return None
 
 
-def _solve_once(catalog, prices, prob, cands, bounds, values, group_of, n, shrink, time_limit) -> Result | None:
+def _solve_once(catalog, prices, prob, cands, bounds, values, groups_of, n, shrink, time_limit) -> Result | None:
     m = cp_model.CpModel()
     x = [m.NewBoolVar(f"x{i}") for i in range(len(cands))]
     m.Add(sum(x) == n)
 
+    members: dict[int, list] = defaultdict(list)
+    for i, l in enumerate(cands):
+        gs = groups_of.get(l.skin.id, ())
+        if len(gs) == 1:
+            members[gs[0]].append(x[i])
+        elif gs:
+            assign = [m.NewBoolVar(f"a{i}_{gi}") for gi in gs]
+            m.Add(sum(assign) == x[i])
+            for gi, a in zip(gs, assign):
+                members[gi].append(a)
     for gi, g in enumerate(prob.groups):
-        members = [x[i] for i, l in enumerate(cands) if group_of.get(l.skin.id) == gi]
-        m.Add(sum(members) >= g.min_count)
-        m.Add(sum(members) <= g.max_count)
+        m.Add(sum(members[gi]) >= g.min_count)
+        m.Add(sum(members[gi]) <= g.max_count)
 
     norm_int = [int(round(l._norm * SCALE)) for l in cands]
     total_norm = sum(norm_int[i] * x[i] for i in range(len(cands)))
@@ -167,8 +178,8 @@ def _solve_once(catalog, prices, prob, cands, bounds, values, group_of, n, shrin
         m.Add(total_norm <= cap + big * (1 - used))
 
     cost_c = [int(round(l.cost * 100)) for l in cands]
-    if prob.max_cost:
-        m.Add(sum(cost_c[i] * x[i] for i in range(len(cands))) <= int(prob.max_cost * 100))
+    if prob.max_cost:   # a budget is money to spend: owned skins don't use it up
+        m.Add(sum(cost_c[i] * x[i] for i, l in enumerate(cands) if l.market != OWNED) <= int(prob.max_cost * 100))
     if prob.objective == "cost":
         m.Minimize(sum(cost_c[i] * x[i] for i in range(len(cands))))
     else:
@@ -181,7 +192,9 @@ def _solve_once(catalog, prices, prob, cands, bounds, values, group_of, n, shrin
     status = solver.Solve(m)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
-    chosen = [cands[i] for i in range(len(cands)) if solver.Value(x[i])]
+    # yours first, then one block per skin, cheapest first: easy to read and to buy from
+    chosen = sorted((cands[i] for i in range(len(cands)) if solver.Value(x[i])),
+                    key=lambda l: (l.market != OWNED, l.skin.name, l.souvenir, l.cost, l.float_value))
     inputs = [ContractInput(l.skin, l.float_value, souvenir=l.souvenir, price=l.cost, source=l.market,
                             link=l.link) for l in chosen]
     contract = Contract(catalog, inputs, stattrak=prob.stattrak, formula=prob.formula)

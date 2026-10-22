@@ -89,7 +89,8 @@ def notify(title: str, text: str) -> None:
 
 
 def watch(cfg_loader, tiers, modes, targets, souvenir: bool, top: int, min_roi: float, every_minutes: float,
-          once: bool = False, budget: float | None = None, time_limit: float | None = None) -> None:
+          once: bool = False, budget: float | None = None, time_limit: float | None = None,
+          use_inventory: bool = False) -> None:
     cat = Catalog()
     seen = load_seen()
     while True:
@@ -100,7 +101,7 @@ def watch(cfg_loader, tiers, modes, targets, souvenir: bool, top: int, min_roi: 
         console.rule(f"[bold]Scan {started:%H:%M}[/]")
         try:
             out = run_scan(cfg, cat, tiers, modes, targets, souvenir, top, min_roi, show_coarse=False,
-                           time_limit=time_limit)
+                           time_limit=time_limit, use_inventory=use_inventory)
         except Exception as e:   # a failed pass (network, API) must not end an overnight watch
             console.print(f"[red]Scan failed:[/] {e}")
             out = None

@@ -15,6 +15,9 @@ from .http import Http, HttpError
 from .wear import WEARS, possible_wears
 
 
+OWNED = "inventory"   # Listing.market of a skin the user already owns: no buy link, nothing to re-check
+
+
 @dataclass
 class Listing:
     market: str

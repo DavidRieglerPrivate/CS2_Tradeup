@@ -157,6 +157,14 @@ class PriceBook:
         return Quote(tot_p / tot_w, tot_n / tot_w, vol, "skinport phase-weighted", illiquid,
                      (self.skinport.get((name, variants[0].phase)) or {}).get("item_page", ""))
 
+    def sell_value(self, skin: Skin, wear: str, stattrak: bool, souvenir: bool) -> float:
+        """What an owned skin would bring after the sell fee: its sales median, else the cheapest listing, else 0."""
+        q = self._quote_one(market_hash_name(skin, wear, stattrak, souvenir), skin.phase)
+        if q.net is not None:
+            return q.net
+        offer = self.cheapest(skin, wear, stattrak, souvenir)
+        return offer.price * (1 - float(self.cfg["pricing"]["sell_fee"])) if offer else 0.0
+
     # ------------------------------------------------------------ inputs (coarse)
     def listed_anywhere(self, skin: Skin, stattrak: bool, souvenir: bool) -> bool:
         """Whether the bulk price lists show any listing of this skin version in any wear."""

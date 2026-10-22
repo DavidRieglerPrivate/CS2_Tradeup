@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass, field
 
 from .engine import Contract, Outcome
+from .markets import OWNED
 from .pricing import PriceBook, Quote
 
 
@@ -47,6 +48,16 @@ class Result:
     def big_loss_chance(self) -> float:
         """Chance of getting back less than half of what the inputs cost."""
         return sum(v.outcome.probability for v in self.outcomes if (v.quote.net or 0) < self.cost / 2)
+
+    @property
+    def owned(self) -> list:
+        """Inputs the user already owns (counted at what they'd sell for, unless owned_cost = "free")."""
+        return [i for i in self.contract.inputs if i.source == OWNED]
+
+    @property
+    def cash(self) -> float:
+        """Money to spend on the inputs that still have to be bought."""
+        return sum(i.price for i in self.contract.inputs if i.source != OWNED)
 
     @property
     def profit(self) -> float:

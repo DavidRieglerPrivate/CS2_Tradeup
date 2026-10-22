@@ -6,6 +6,7 @@ knife/glove ("rare special") pool of every case.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -112,6 +113,10 @@ class Catalog:
         raw_skins = json.loads((data_dir / "skins.json").read_text(encoding="utf8"))
         raw_cols = json.loads((data_dir / "collections.json").read_text(encoding="utf8"))
         raw_crates = json.loads((data_dir / "crates.json").read_text(encoding="utf8"))
+        # the dataset's own "souvenir" flag is set for most skins (AK-47 | Redline, AWP | Asiimov...); a Souvenir
+        # version exists only for skins that drop from a souvenir package
+        souvenir_ids = {ref["id"] for c in raw_crates if c.get("type") in ("Souvenir", "Souvenir Highlight")
+                        for ref in c.get("contains") or []}
 
         for s in raw_skins:
             rid = s["rarity"]["id"]
@@ -130,7 +135,7 @@ class Catalog:
                 paint_index=int(s["paint_index"]) if s.get("paint_index") not in (None, "") else None,
                 phase=s.get("phase"),
                 stattrak=bool(s.get("stattrak")),
-                souvenir=bool(s.get("souvenir")),
+                souvenir=s["id"] in souvenir_ids if souvenir_ids else bool(s.get("souvenir")),
                 collection_id=cols[0]["id"] if cols else None,
                 is_glove=cat == "sfui_invpanel_filter_gloves",
             )
@@ -163,15 +168,26 @@ class Catalog:
         return self.collections.get(skin.collection_id) if skin.collection_id else None
 
     def find_skin(self, query: str) -> Skin:
-        """Look up a tradeable weapon skin by (case-insensitive) name, e.g. 'AK-47 | Redline'."""
-        q = query.strip().lower()
+        """Look up a tradeable weapon skin by name, e.g. 'AK-47 | Redline', 'ak redline' or a Steam market name
+        like 'StatTrak™ AK-47 | Redline (Field-Tested)' (the StatTrak/Souvenir/wear parts are ignored here)."""
+        base = split_item_name(query)[0]
+        q = base.lower()
         hits = [s for s in self.by_name.get(q, []) if not s.is_special]
         if not hits:
             hits = [s for name, ss in self.by_name.items() if q in name for s in ss if not s.is_special]
             names = sorted({s.name for s in hits})
             if len(names) > 1:
                 raise KeyError(f"'{query}' is ambiguous: {', '.join(names[:8])}")
-        if not hits:
+        if not hits:   # "ak redline", "ak47 redlin": the forgiving menu search
+            found = [o for kind, o in self.search(base, collections=False)]
+            words = " ".join(q.replace("|", " ").split()).split()
+            strong = [s for s in found if all(w in s.name.lower() for w in words)]
+            if len(found) == 1 or len(strong) == 1:
+                return (strong or found)[0]
+            if found:
+                raise KeyError(f"'{query}' is ambiguous: {', '.join(s.name for s in found[:8])}")
+            if any(all(w in name for w in words) for name, ss in self.by_name.items() if ss[0].is_special):
+                raise KeyError(f"'{query}' is a knife or gloves; those come out of trade-ups but can't go in")
             raise KeyError(f"no skin named '{query}'")
         return hits[0]
 
@@ -184,9 +200,12 @@ class Catalog:
             return exact[0]
         hits = [c for c in self.collections.values() if q in c.name.lower()
                 or (c.case_name and q in c.case_name.lower())]
-        if len(hits) != 1:
-            names = ", ".join(c.name for c in hits[:8]) or "none"
-            raise KeyError(f"collection '{query}' matched {len(hits)}: {names}")
+        if not hits:   # typos: the forgiving menu search
+            hits = [o for _, o in self.search(query, skins=False)]
+        if not hits:
+            raise KeyError(f"no collection or case named '{query}'")
+        if len(hits) > 1:
+            raise KeyError(f"'{query}' matches several collections: {', '.join(c.name for c in hits[:8])}")
         return hits[0]
 
     def search(self, query: str, tier: int | None = None, limit: int = 9,
@@ -251,6 +270,32 @@ class Catalog:
             if col.outputs_for(tier, stattrak):
                 out.append(col)
         return out
+
+
+_WEAR_SUFFIX = re.compile(r"\s*\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)\s*$", re.I)
+_STATTRAK = re.compile(r"^(stattrak™?|st)\s+", re.I)
+_SOUVENIR = re.compile(r"^souvenir(:\s*|\s+)", re.I)
+
+
+def split_item_name(text: str) -> tuple[str, bool, bool, str | None]:
+    """'StatTrak™ AK-47 | Redline (Field-Tested)' -> ('AK-47 | Redline', True, False, 'Field-Tested').
+
+    Also takes 'souvenir:Name' (the calc syntax) and 'ST Name'. A leading '★ ' is dropped.
+    """
+    name = text.strip()
+    wear = None
+    m = _WEAR_SUFFIX.search(name)
+    if m:
+        wear, name = m.group(1), name[:m.start()]
+    name = name.removeprefix("★").strip()
+    stattrak = souvenir = False
+    m = _STATTRAK.match(name)
+    if m:
+        stattrak, name = True, name[m.end():]
+    m = _SOUVENIR.match(name)
+    if m:
+        souvenir, name = True, name[m.end():]
+    return name.strip(), stattrak, souvenir, wear
 
 
 def market_hash_name(skin: Skin, wear_code: str | None, stattrak: bool = False, souvenir: bool = False) -> str:

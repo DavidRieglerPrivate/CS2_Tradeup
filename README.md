@@ -10,8 +10,9 @@ guarantee a target output float. Outputs are valued at Skinport's recent sales m
 3. Pick a number from the menu:
    - **Find profitable trade-ups for me:** answers a few questions, then scans all markets.
    - **Build my own trade-up:** type skin or collection names, get the cheapest buy links.
-   - **Check a trade-up with skins I have:** enter your skins and floats, see odds and value.
-   - **Look at a collection**, **Set up market API keys**, **How do trade-ups work?**
+   - **Check a trade-up with skins I have:** pick skins from your Steam inventory (floats are read for
+     you) or type them in, see odds and value.
+   - **Look at a collection**, **Set up market API keys** (and your Steam profile), **How do trade-ups work?**
    - **Check that the markets are working:** one quick request to every market (same as `tradeup doctor`).
 
 Every result starts with a plain-language summary and a verdict: *Looks profitable*, *Risky gamble*
@@ -37,7 +38,8 @@ copy config.example.toml config.toml   # then paste your API keys
 ```
 
 Keys can also be set as environment variables: `CSFLOAT_API_KEY`, `WAXPEER_API_KEY`,
-`DMARKET_PUBLIC_KEY`, `DMARKET_SECRET_KEY`. Any market without a key is skipped.
+`DMARKET_PUBLIC_KEY`, `DMARKET_SECRET_KEY`, and the Steam profile as `STEAM_ID`. Any market without a key
+is skipped.
 
 | Market | Used for | Key needed |
 |---|---|---|
@@ -45,6 +47,7 @@ Keys can also be set as environment variables: `CSFLOAT_API_KEY`, `WAXPEER_API_K
 | DMarket | Input listings with floats | Yes (Ed25519 key pair) |
 | Waxpeer | Input listings with floats, bulk lowest prices | Listings yes, bulk prices no |
 | Skinport | Output sales medians, bulk lowest prices | No |
+| Steam | Your own skins with floats (public inventory) | No, just your profile link |
 
 ## Commands
 
@@ -56,6 +59,8 @@ tradeup info "Chroma 2"
 tradeup calc -i "AK-47 | Redline@0.16x10"
 tradeup calc -i "AK-47 | Redline@0.16x3" -i "souvenir:AWP | BOOM@0.1x7"
 tradeup calc -i "AWP | Hyper Beast@0.1x5" --stattrak        # Covert -> knife (5 inputs)
+tradeup calc -i "StatTrak™ AK-47 | Redline (Field-Tested)@0.16x10"   # Steam market names work too
+tradeup calc -i "ak redline @ 0,16 x 10"                     # so do short names and comma decimals
 
 # Find the cheapest listings for a composition and target float
 tradeup optimize -i "AK-47 | Redline=3" -i "col:Huntsman=7" -t MW
@@ -77,6 +82,13 @@ tradeup watch --once ...                       # a single pass, for Windows Task
 tradeup doctor
 ```
 
+```powershell
+# Skins you already own (Steam inventory): list them, or let scans and optimize use them
+tradeup inventory                              # usable skins with floats and what each is worth
+tradeup scan --tier classified -t FT --inventory
+tradeup optimize -i "col:Norse=10" --tier restricted -t FT --inventory
+```
+
 `watch` remembers contracts it already alerted on (`data/alerts_seen.json`) and writes each alert with its
 buy links to `data/alerts.log`. To run it without a terminal open, create a Task Scheduler task that runs
 `.venv\Scripts\tradeup.exe watch --once ...` with "Start in" set to this folder.
@@ -85,7 +97,32 @@ Run `tradeup doctor` when results look thin. A market whose API changed doesn't 
 stops returning listings; the doctor reports that as FAIL.
 
 Input specs for `optimize`: `"Skin=3"` exactly 3, `"Skin"` any number, `"col:Name=7"` 7 from a
-collection, `"col:Name=2-5"` between 2 and 5. Targets are `FN/MW/FT/WW/BS` or a maximum float.
+collection, `"col:Name=2-5"` between 2 and 5. A skin may also be part of a collection you list
+(`"AK-47 | Redline=3" "col:Phoenix=7"`): each input counts for one of them. Counts that can't add up to a
+full contract are reported before any market is asked. Targets are `FN/MW/FT/WW/BS` or a maximum float.
+The chosen inputs are listed with your own skins first, then one block per skin, cheapest first.
+
+## Using skins you already own
+
+Set your Steam profile once (menu option 5, or `steam_id` in `config.toml`: a profile link, SteamID64 or
+custom profile name). The inventory must be public: Steam > Profile > Edit Profile > Privacy Settings >
+Inventory: Public. No Steam API key is needed: Steam's inventory page sends every skin's float along.
+Skins inside storage units aren't part of it, so take them out first.
+
+Owned skins are only used when you say so (the menu asks; on the command line `--inventory`). Then:
+
+- **Scan** and **Build my own** treat each owned skin like a listing with its own float. The optimizer mixes
+  them with market listings and uses one only where it beats buying. A scan with a time limit checks the
+  ideas your skins can go into first.
+- **Each owned skin costs what it would sell for** (Skinport sales median after the sell fee), because
+  using it means giving that money up. Set `[inventory] owned_cost = "free"` to count them as $0, which makes
+  every contract with your skins look better than it is.
+- **The budget is cash only:** owned skins don't count against "maximum you want to spend". Results show how
+  many of your skins they use, what those are counted at, and what you still have to buy.
+- **Check a trade-up** can pick a whole contract from your inventory: type the row numbers (`1-10`, `2,4,6`).
+
+The inventory is read at most every 10 minutes (Steam blocks frequent reads for a while). `tradeup doctor`
+checks that it can still be read.
 
 ## How a scan covers every idea
 

@@ -10,13 +10,17 @@ from rich.panel import Panel
 from rich.prompt import Confirm, FloatPrompt, IntPrompt, Prompt
 from rich.table import Table
 
-from .actions import markets_status, run_check, run_optimize, run_recheck, run_scan
-from .catalog import COVERT, TIER_NAMES, Catalog, Collection, Skin
+from .actions import check_steam_id, markets_status, run_check, run_inventory, run_optimize, run_recheck, run_scan
+from .catalog import TIER_NAMES, Catalog, Collection, Skin
 from .config import load_config, save_keys
-from .display import collection_table, console, coverage_lines, print_result, results_overview, tier_label
+from .display import (collection_table, console, coverage_lines, inventory_table, print_result, results_overview,
+                      tier_label)
 from .engine import Contract, ContractError, ContractInput, contract_size
 from .evaluate import Result
+from .inventory import InventoryError
+from .markets import OWNED
 from .optimizer import Group
+from .scanner import check_groups
 from .wear import WEARS, parse_target
 
 
@@ -59,9 +63,21 @@ def ask_float(question: str, lo: float, hi: float) -> float:
         console.print(f"[red]Please enter a number between {lo} and {hi}, for example {lo + (hi - lo) / 4:.4f}.[/]")
 
 
+def ask_count(left: int) -> int | None:
+    """How many of one item: a number from 1 to `left`, or None (Enter) to let the program decide."""
+    while True:
+        raw = Prompt.ask(f"How many of these? (1-{left}, or press Enter to let the program decide)",
+                         default="", show_default=False).strip()
+        if not raw:
+            return None
+        if raw.isdigit() and 1 <= int(raw) <= left:
+            return int(raw)
+        console.print(f"[red]Please type a number from 1 to {left}, or just press Enter.[/]")
+
+
 def ask_money(question: str) -> float:
     while True:
-        raw = Prompt.ask(question, default="").strip().replace("$", "").replace(",", ".")
+        raw = Prompt.ask(question, default="", show_default=False).strip().replace("$", "").replace(",", ".")
         if not raw:
             return 0.0
         try:
@@ -71,6 +87,23 @@ def ask_money(question: str) -> float:
         except ValueError:
             pass
         console.print("[red]Please type an amount like 50 or 120.5, or just press Enter for no limit.[/]")
+
+
+def why_not_found(cat: Catalog, q: str, tier: int | None, skins: bool, collections: bool, no_st: list) -> str:
+    """Explain an empty search: usually the rarity or StatTrak™ filter hid what the user typed."""
+    if no_st:
+        return f"{no_st[0][1].name} has no StatTrak™ version, so it can't go into a StatTrak™ trade-up."
+    if tier is not None:
+        other = cat.search(q, skins=skins, collections=collections)
+        if other:
+            kind, obj = other[0]
+            if kind == "skin":
+                return (f"{obj.name} is {TIER_NAMES[obj.tier]}, but this trade-up is {TIER_NAMES[tier]}: all "
+                        "skins in a trade-up must have the same rarity.")
+            return f"{obj.name} has no {TIER_NAMES[tier]} skins."
+    if skins and not collections and cat.search(q, skins=False):
+        return "That's a collection. Type the name of one skin, e.g. 'AK-47 | Redline'."
+    return "Nothing found. Try part of the name, e.g. 'redline' or 'asiimov'."
 
 
 def pick_from_search(cat: Catalog, prompt: str, tier: int | None = None, skins: bool = True,
@@ -85,10 +118,10 @@ def pick_from_search(cat: Catalog, prompt: str, tier: int | None = None, skins: 
         if q.lower() in ("0", "back"):
             raise Back
         hits = cat.search(q, tier=tier, skins=skins, collections=collections)
-        if stattrak:
-            hits = [h for h in hits if h[0] != "skin" or h[1].stattrak]
+        no_st = [h for h in hits if h[0] == "skin" and not h[1].stattrak] if stattrak else []
+        hits = [h for h in hits if h not in no_st]
         if not hits:
-            console.print("[yellow]Nothing found. Try part of the name, e.g. 'redline' or 'asiimov'.[/]")
+            console.print(f"[yellow]{why_not_found(cat, q, tier, skins, collections, no_st)}[/]")
             q = ""
             continue
         t = Table(show_header=True)
@@ -160,6 +193,86 @@ def ask_condition(allow_any: bool) -> list[tuple[str, float]]:
     return [(code, parse_target(code, margin))]
 
 
+STEAM_HELP = ("Paste the link to your Steam profile (steamcommunity.com/id/... or /profiles/...). Your inventory "
+              "must be public: Steam > Profile > Edit Profile > Privacy Settings > Inventory: Public. "
+              "Skins inside storage units can't be read; take them out first.")
+
+
+def ask_steam_profile() -> bool:
+    """Ask for the Steam profile, check its inventory can be read and save it. False if none was set."""
+    console.print(f"[dim]{STEAM_HELP}[/]")
+    raw = Prompt.ask("Steam profile link (press Enter to skip)", default="", show_default=False).strip()
+    if not raw:
+        return False
+    try:
+        with console.status("Checking that your Steam inventory can be read..."):
+            sid = check_steam_id(load_config(), raw)
+    except InventoryError as e:
+        console.print(f"[red]Can't use that profile: {e}[/]")
+        return False
+    save_keys({"steam_id": sid})
+    console.print(f"[green]Saved your Steam profile ({sid}).[/]")
+    return True
+
+
+def ask_use_inventory() -> bool:
+    """Whether to include skins the user already owns. Asks for the Steam profile the first time."""
+    if load_config().key("steam_id"):
+        return Confirm.ask("Also use skins you already own (from your Steam inventory)?", default=False)
+    if not Confirm.ask("Also use skins you already own? This needs your Steam profile", default=False):
+        return False
+    return ask_steam_profile()
+
+
+def parse_numbers(raw: str, hi: int) -> list[int] | None:
+    """'1-3, 5 7' -> [1, 2, 3, 5, 7]; None when something isn't a number from 1 to hi."""
+    out = []
+    for part in raw.replace(",", " ").split():
+        a, _, b = part.partition("-")
+        if not a.isdigit() or (b and not b.isdigit()):
+            return None
+        lo, up = int(a), int(b or a)
+        if not 1 <= lo <= up <= hi:
+            return None
+        out += range(lo, up + 1)
+    return list(dict.fromkeys(out)) or None
+
+
+def pick_owned(cat: Catalog) -> tuple[list[ContractInput], bool] | None:
+    """Let the user pick a full contract from their inventory: (inputs, StatTrak). None = they went back."""
+    if not load_config().key("steam_id") and not ask_steam_profile():
+        return None
+    owned, total = run_inventory(load_config(), cat)
+    if not owned:
+        console.print(f"[yellow]None of the {total} items in your inventory can go into a trade-up (only weapon "
+                      "skins with a higher rarity in their collection can).[/]")
+        return None
+    inventory_table(cat, owned)
+    console.print("[dim]Worth = what the skin would sell for after the sell fee. All picked skins must have the "
+                  "same rarity, and StatTrak™ can't mix with normal ones.[/]")
+    while True:
+        raw = Prompt.ask("Type the numbers of the skins to use, e.g. 1-10 or 1,3,5 (Enter = back)",
+                         default="", show_default=False).strip()
+        if not raw:
+            return None
+        idx = parse_numbers(raw, len(owned))
+        if idx is None:
+            console.print(f"[red]Use numbers from the # column (1-{len(owned)}), like 1-10 or 2,4,6.[/]")
+            continue
+        chosen = [owned[i - 1] for i in idx]
+        if len({(l.skin.tier, l.stattrak) for l in chosen}) > 1:
+            console.print("[red]Those skins differ in rarity or StatTrak™. Pick skins of one kind only.[/]")
+            continue
+        n = contract_size(chosen[0].skin.tier)
+        if len(chosen) != n:
+            console.print(f"[red]This rarity needs exactly {n} skins, you picked {len(chosen)}.[/]"
+                          + (" To fill the rest with the cheapest market listings, use 'Build my own trade-up' "
+                             "and say yes to using your own skins." if len(chosen) < n else ""))
+            continue
+        return ([ContractInput(l.skin, l.float_value, souvenir=l.souvenir, price=l.cost, source=OWNED)
+                 for l in chosen], chosen[0].stattrak)
+
+
 def offer_links(res: Result) -> None:
     links = [i.link for i in res.contract.inputs if i.link]
     if links and Confirm.ask(f"Open the {len(links)} listing pages in your web browser?", default=False):
@@ -171,7 +284,7 @@ def browse_results(results: list[Result], cfg=None, cat: Catalog | None = None) 
     while True:
         results_overview(results)
         raw = Prompt.ask("Type a number to see details and buy links, or press Enter to go back",
-                         default="").strip()
+                         default="", show_default=False).strip()
         if not raw:
             return
         if raw.isdigit() and 1 <= int(raw) <= len(results):
@@ -191,7 +304,7 @@ def browse_results(results: list[Result], cfg=None, cat: Catalog | None = None) 
                 res = results[int(raw) - 1] = new
             print_result(res, int(raw))
             offer_links(res)
-            Prompt.ask("Press Enter to return to the list", default="")
+            Prompt.ask("Press Enter to return to the list", default="", show_default=False)
         else:
             console.print(f"[red]Please type a number from 1 to {len(results)}.[/]")
 
@@ -215,7 +328,9 @@ def action_scan(cat: Catalog) -> None:
     targets = ask_condition(allow_any=True)
     m = choose("StatTrak™?", [("Normal only", ""), ("StatTrak™ only", ""), ("Both", "takes longer")], default=3)
     modes = {1: [False], 2: [True], 3: [False, True]}[m]
-    budget = ask_money("Maximum you want to spend on one trade-up in USD (press Enter for no limit)")
+    use_inventory = bool(connected) and ask_use_inventory()
+    budget = ask_money("Maximum you want to spend on one trade-up in USD"
+                       + (", not counting your own skins" if use_inventory else "") + " (press Enter for no limit)")
     depth = choose("How long may the search take? Ideas are checked most promising first; a scan that runs "
                    "out of time says how many it covered.", [
         ("Quick", "up to 2 minutes"),
@@ -229,13 +344,19 @@ def action_scan(cat: Catalog) -> None:
     if budget:
         cfg["scan"]["max_contract_cost"] = budget
     out = run_scan(cfg, cat, tiers, modes, targets, souvenir=True, top=None, time_limit=time_limit,
-                   min_roi=0.0 if only_profit else -1.0, coarse_only=not connected, show_coarse=not connected)
+                   min_roi=0.0 if only_profit else -1.0, coarse_only=not connected, show_coarse=not connected,
+                   use_inventory=use_inventory)
     if not out.candidates:
         console.print("[yellow]No ideas matched those settings. Try a higher budget or another rarity.[/]")
         return
     if not out.deep_ran:
         console.print("[dim]These are estimates only. Add API keys (option 5) to check real listings.[/]")
         return
+    if out.owned is not None:
+        console.print(f"[dim]{out.owned} of your own skins fit these settings; the ideas they can go into were "
+                      "checked first.[/]" if out.owned else
+                      "[yellow]None of your own skins fit these settings (rarity, StatTrak™), so only market "
+                      "listings were used.[/]")
     for line in coverage_lines(out.coverage):
         console.print(line)
     if out.errors:
@@ -260,72 +381,85 @@ def action_build(cat: Catalog) -> None:
         title="Build your own trade-up", border_style="cyan"))
     groups: list[Group] = []
     tier: int | None = None
+    stattrak = False
     fixed = 0
     flexible = False
     while True:
-        n = contract_size(tier) if tier is not None else 10
         if tier is not None:
+            n = contract_size(tier)
             console.print(f"\n[bold]Slots used: {fixed} of {n}[/]" + (" (plus 'program decides' items)" if flexible
                                                                         else ""))
             if fixed >= n:
                 break
         hit = pick_from_search(cat, "Type a skin or collection name" + (" (press Enter when done)"
-                                                                         if groups else ""), tier=tier)
+                                                                         if groups else ""),
+                               tier=tier, stattrak=stattrak)
         if hit is None:
             if not groups:
                 continue
             break
         kind, obj = hit
+        new_tier = tier
         if kind == "collection" and tier is None:
             avail = [t for t, _, _ in RARITY_OPTIONS if obj.tiers.get(t) and obj.outputs_for(t, False)]
             if not avail:
                 console.print("[red]Nothing in this collection can be traded up.[/]")
                 continue
             i = choose("Which rarity from this collection?",
-                       [(TIER_NAMES[t], f"{len(obj.tiers[t])} skins") for t in avail])
-            tier = avail[i - 1]
-        elif kind == "collection" and not obj.outputs_for(tier, False):
-            console.print(f"[red]{obj.name} has no higher rarity above {TIER_NAMES[tier]}, so it can't be used.[/]")
+                       [(TIER_NAMES[t], f"{len({s.name for s in obj.tiers[t]})} skins") for t in avail])
+            new_tier = avail[i - 1]
+        elif kind == "skin" and tier is None:
+            new_tier = obj.tier
+        col = obj if kind == "collection" else cat.collection_of(obj)
+        if not col or not col.outputs_for(new_tier, stattrak):
+            console.print(f"[red]{obj.name} can't be traded up: {TIER_NAMES[new_tier]} is the highest rarity in "
+                          f"{col.name if col else 'its collection'}.[/]")
             continue
-        elif kind == "skin":
-            if tier is None:
-                tier = obj.tier
-            col = cat.collection_of(obj)
-            if not col or not col.outputs_for(tier, False):
-                console.print("[red]This skin is the highest rarity in its collection, so it can't be traded up.[/]")
-                if not groups:
-                    tier = None
+        ids = {obj.id} if kind == "skin" else {s.id for s in obj.tiers.get(new_tier, [])}
+        if tier is None:
+            # asked now, not at the end: it decides which skins can be added from here on
+            tier = new_tier
+            if any(cat.skins[sid].stattrak for sid in ids):
+                stattrak = Confirm.ask("StatTrak™ trade-up? (StatTrak™ and normal skins can't be mixed)",
+                                       default=False)
+        if stattrak:
+            ids = {sid for sid in ids if cat.skins[sid].stattrak}
+            if not ids:
+                console.print(f"[red]{obj.name} has no StatTrak™ {TIER_NAMES[tier]} skins.[/]")
                 continue
+        if any(g.skin_ids == ids for g in groups):
+            console.print(f"[yellow]{obj.name} is already in this trade-up.[/]")
+            continue
         n = contract_size(tier)
-        left = n - fixed
-        raw = Prompt.ask(f"How many of these? (1-{left}, or press Enter to let the program decide)",
-                         default="").strip()
-        if raw.isdigit() and 1 <= int(raw) <= left:
-            lo = hi = int(raw)
+        count = ask_count(n - fixed)
+        if count is None:
+            lo, hi, flexible = 0, n, True
         else:
-            lo, hi, flexible = 0, left, True
-        ids = {obj.id} if kind == "skin" else {s.id for s in obj.tiers.get(tier, [])}
-        label = obj.name
-        groups.append(Group(ids, lo, hi, label))
+            lo = hi = count
+        groups.append(Group(ids, lo, hi, obj.name))
         fixed += lo
     n = contract_size(tier)
     if fixed < n and not flexible:
         console.print(f"[dim]You picked {fixed} of {n}. The remaining slots are filled with the items you chose.[/]")
         for g in groups:
             g.max_count = n
-    for g in groups:
-        g.max_count = min(g.max_count, n)
+    try:
+        check_groups(cat, groups, tier, stattrak)
+    except ValueError as e:
+        console.print(f"[red]This trade-up isn't possible: {e}[/]")
+        return
 
+    use_inventory = ask_use_inventory()
     targets = ask_condition(allow_any=False)
     _, max_out = targets[0]
-    all_st = all(cat.skins[sid].stattrak for g in groups for sid in g.skin_ids)
-    stattrak = all_st and Confirm.ask("Use StatTrak™ versions?", default=False)
-    goal = choose("What matters most?", [
-        ("Cheapest skins that reach the condition", "you decide the mix"),
-        ("Highest expected profit", "the program may change the mix within your limits"),
-    ], default=1)
+    goal = 1
+    if flexible:   # with every count fixed, the cheapest skins are also the most profitable ones
+        goal = choose("What matters most?", [
+            ("Cheapest skins that reach the condition", "lowest total price"),
+            ("Highest expected profit", "may use more of the collections whose results are worth more"),
+        ], default=1)
     res, msg = run_optimize(load_config(), cat, groups, tier, stattrak, max_out, souvenir=not stattrak,
-                            objective="cost" if goal == 1 else "profit")
+                            objective="cost" if goal == 1 else "profit", use_inventory=use_inventory)
     if not res:
         console.print(f"[yellow]{msg}[/]")
         return
@@ -340,31 +474,53 @@ def action_check(cat: Catalog) -> None:
         "The program shows what you can get, with what chance, and whether it's worth it.\n"
         "You can find a skin's float by inspecting it in game or on any market listing.",
         title="Check a trade-up", border_style="cyan"))
+    source = choose("Where are the skins?", [
+        ("In my Steam inventory", "pick them from a list, floats are read for you"),
+        ("I'll type them in", "names and floats by hand"),
+    ], default=1)
+    if source == 1:
+        picked = pick_owned(cat)
+        if picked is None:
+            return
+        inputs, stattrak = picked
+        try:
+            contract = Contract(cat, inputs, stattrak=stattrak, formula=load_config().float_formula)
+        except ContractError as e:
+            console.print(f"[red]This trade-up isn't possible: {e}[/]")
+            return
+        res = run_check(load_config(), contract)
+        print_result(res)
+        return
     inputs: list[ContractInput] = []
     tier = None
+    stattrak = False
     while True:
         n = contract_size(tier) if tier is not None else 10
         if inputs:
             console.print(f"\n[bold]{len(inputs)} of {n} skins added[/]")
         if inputs and len(inputs) >= n:
             break
-        hit = pick_from_search(cat, "Type the name of a skin", tier=tier, collections=False)
+        hit = pick_from_search(cat, "Type the name of a skin", tier=tier, collections=False, stattrak=stattrak)
         if hit is None:
+            if inputs:
+                console.print(f"[dim]A {TIER_NAMES[tier]} trade-up needs exactly {n} skins, {n - len(inputs)} "
+                              "more to go (0 = main menu).[/]")
             continue
         s: Skin = hit[1]
         col = cat.collection_of(s)
-        if not col or not col.outputs_for(s.tier, False):
+        if not col or not col.outputs_for(s.tier, stattrak):
             console.print("[red]This skin is the highest rarity in its collection, so it can't be traded up.[/]")
             continue
-        tier = s.tier
-        n = contract_size(tier)
-        fl = ask_float(f"Float of this {s.name} (allowed {s.min_float:.2f} to {s.max_float:.2f})",
-                       s.min_float, s.max_float)
+        if tier is None:
+            tier = s.tier
+            n = contract_size(tier)
+            stattrak = s.stattrak and Confirm.ask("Is it StatTrak™? (then all of them must be StatTrak™)",
+                                                  default=False)
+        fl = ask_float(f"Float of this {'StatTrak™ ' if stattrak else ''}{s.name} "
+                       f"(allowed {s.min_float:.2f} to {s.max_float:.2f})", s.min_float, s.max_float)
         count = ask_number(f"How many with this float? (1-{n - len(inputs)})", 1, n - len(inputs), default=1)
-        souv = s.souvenir and Confirm.ask("Is it a Souvenir?", default=False)
+        souv = not stattrak and s.souvenir and Confirm.ask("Is it a Souvenir?", default=False)
         inputs += [ContractInput(s, fl, souvenir=souv) for _ in range(count)]
-    stattrak = (all(i.skin.stattrak for i in inputs) and not any(i.souvenir for i in inputs)
-                and Confirm.ask("Are they StatTrak™?", default=False))
     try:
         contract = Contract(cat, inputs, stattrak=stattrak, formula=load_config().float_formula)
     except ContractError as e:
@@ -405,6 +561,11 @@ def action_keys() -> None:
         console.print(f"[green]Saved {len(new)} key(s) to {path.name}.[/]")
     else:
         console.print("Nothing changed.")
+    sid = load_config().key("steam_id")
+    console.print("\n[bold]Steam profile[/] (to use skins you already own): "
+                  + (f"[green]{sid}[/]" if sid else "[red]not set[/]"))
+    if not sid or Confirm.ask("Change it?", default=False):
+        ask_steam_profile()
 
 
 def action_doctor(cat: Catalog) -> None:
@@ -446,9 +607,9 @@ def run() -> None:
     actions = [
         ("Find profitable trade-ups for me", "automatic scan", lambda: action_scan(cat)),
         ("Build my own trade-up", "pick skins, get the cheapest buy links", lambda: action_build(cat)),
-        ("Check a trade-up with skins I have", "enter floats, see the odds", lambda: action_check(cat)),
+        ("Check a trade-up with skins I have", "from your Steam inventory or typed in", lambda: action_check(cat)),
         ("Look at a collection", "skins, rarities, float ranges", lambda: action_collection(cat)),
-        ("Set up market API keys", "", action_keys),
+        ("Set up market API keys", "and your Steam profile", action_keys),
         ("How do trade-ups work?", "", lambda: console.print(Panel(HELP, border_style="cyan"))),
         ("Check that the markets are working", "about a minute", lambda: action_doctor(cat)),
     ]
@@ -479,4 +640,4 @@ def run() -> None:
         except Exception as e:  # never dump a traceback on a non-technical user
             console.print(f"[red]Something went wrong:[/] {e}\n"
                           "[dim]If this keeps happening, check your internet connection and API keys.[/]")
-        Prompt.ask("\nPress Enter to return to the main menu", default="")
+        Prompt.ask("\nPress Enter to return to the main menu", default="", show_default=False)

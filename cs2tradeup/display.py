@@ -11,6 +11,7 @@ from rich.table import Table
 
 from .catalog import COVERT, TIER_NAMES, Collection, market_hash_name
 from .evaluate import Result
+from .markets import OWNED
 from .wear import possible_wears
 
 console = Console(highlight=False, width=None if sys.stdout.isatty() else 200)
@@ -63,11 +64,24 @@ def explain(res: Result) -> None:
     best = max(res.outcomes, key=lambda v: v.quote.net or 0)
     worst = min(res.outcomes, key=lambda v: v.quote.net or 0)
     v_short, v_long = verdict(res)
+    mine = res.owned
+    if not mine and not any(i.link for i in c.inputs):   # skins typed in by hand: nothing to buy
+        inputs = (f"* Your {c.size} skins would cost [bold]{money(res.cost)}[/] to buy again right now "
+                  "(cheapest listings of their condition).")
+    elif not mine:
+        inputs = f"* You buy {c.size} skins for [bold]{money(res.cost)}[/] in total."
+    elif len(mine) == c.size:
+        inputs = (f"* All {c.size} skins are yours, counted at [bold]{money(res.cost)}[/] (what they'd sell for); "
+                  "nothing has to be bought.")
+    else:
+        inputs = (f"* [bold]{len(mine)}[/] of the {c.size} skins are already yours, counted at "
+                  f"{money(res.cost - res.cash)} (what they'd sell for); you buy the other {c.size - len(mine)} "
+                  f"for [bold]{money(res.cash)}[/]. All {c.size} together: [bold]{money(res.cost)}[/].")
     lines = [
         f"Verdict: {v_short}",
         v_long,
         "",
-        f"* You buy {c.size} skins for [bold]{money(res.cost)}[/] in total.",
+        inputs,
         f"* You get [bold]one[/] random skin back. On average it sells for [bold]{money(res.ev)}[/] "
         f"after the {res.sell_fee * 100:g}% fee for selling"
         + (f" on {res.sell_market}" if res.sell_market else "") + ".",
@@ -87,8 +101,8 @@ def explain(res: Result) -> None:
     if res.runs_needed and res.runs_needed > 1:
         lines.append(f"* To be about 95% sure of being ahead overall, plan on [bold]{res.runs_needed}[/] of these "
                      f"(about {money(res.runs_needed * res.cost)} spent in total).")
-    lines.append(f"[dim]* Values are Skinport sale prices. If you sell somewhere else, change sell_fee and "
-                 f"sell_market in config.toml (CSFloat 2%, Skinport 8%, Steam 15%).[/]")
+    lines.append("[dim]* Values are Skinport sale prices. If you sell somewhere else, change sell_fee and "
+                 "sell_market in config.toml (CSFloat 2%, Skinport 8%, Steam 15%).[/]")
     if any(v.quote.illiquid for v in res.outcomes):
         lines.append("[yellow]* Results marked with ! sell rarely, so their price is less certain.[/]")
     console.print(Panel("\n".join(lines), title="What this means", title_align="left", border_style="cyan"))
@@ -127,13 +141,16 @@ def print_result(res: Result, rank: int | None = None, plain: bool = True) -> No
     console.print(t)
 
     has_links = any(i.link for i in c.inputs)
-    t = Table(title="Skins to buy" if has_links else "Your skins (valued at the cheapest listing)",
-              title_justify="left")
+    title = ("Skins to use (yours and to buy)" if has_links and res.owned else "Skins to buy" if has_links
+             else "Your skins (valued at what they'd sell for)" if res.owned
+             else "Your skins (valued at the cheapest listing)")
+    t = Table(title=title, title_justify="left")
     for col in ("#", "Market", "Skin", "Float", "Price"):
         t.add_column(col, justify="right" if col in ("#", "Float", "Price") else "left")
     for i, inp in enumerate(c.inputs, 1):
         name = ("Souvenir " if inp.souvenir else "StatTrak™ " if c.stattrak else "") + inp.skin.name
-        t.add_row(str(i), inp.source or "-", name, f"{inp.float_value:.6f}", money(inp.price))
+        source = "[green]your inventory[/]" if inp.source == OWNED else inp.source or "-"
+        t.add_row(str(i), source, name, f"{inp.float_value:.6f}", money(inp.price))
     console.print(t)
     if has_links:
         console.print("[bold]Buy links[/] (Ctrl+click to open):")
@@ -144,13 +161,33 @@ def print_result(res: Result, rank: int | None = None, plain: bool = True) -> No
 
 def results_overview(results: list[Result]) -> None:
     t = Table(title="Trade-ups found (best first)", title_justify="left")
-    for col in ("#", "Trade-up", "Type", "Cost", "Avg return", "Avg profit", "Win chance", "Swing", "Verdict"):
-        t.add_column(col, justify="right" if col in ("#", "Cost", "Avg return", "Avg profit", "Win chance", "Swing")
-                     else "left")
+    yours = any(r.owned for r in results)
+    cols = ["#", "Trade-up", "Type", "Cost"] + (["Yours", "To buy"] if yours else []) + [
+        "Avg return", "Avg profit", "Win chance", "Swing", "Verdict"]
+    for col in cols:
+        t.add_column(col, justify="left" if col in ("Trade-up", "Type", "Verdict") else "right")
     for i, r in enumerate(results, 1):
-        t.add_row(str(i), r.label, contract_kind(r), money(r.cost), money(r.ev),
+        mine = [f"{len(r.owned)}", money(r.cash)] if yours else []
+        t.add_row(str(i), r.label, contract_kind(r), money(r.cost), *mine, money(r.ev),
                   f"[{'green' if r.profit >= 0 else 'red'}]{signed_money(r.profit)} ({pct(r.roi)})[/]",
                   f"{r.profit_chance * 100:.0f}%", f"±{money(r.spread)}", verdict(r)[0])
+    console.print(t)
+    if yours:
+        console.print("[dim]Yours = skins from your inventory it uses; Cost counts them at what they'd sell for, "
+                      "To buy is the money you still spend.[/]")
+
+
+def inventory_table(cat, owned, title: str = "Your skins that can go into a trade-up") -> None:
+    """Numbered list of owned skins (Listings of the inventory market), as given."""
+    from .inventory import display_name
+
+    t = Table(title=title, title_justify="left")
+    for col in ("#", "Skin", "Rarity", "Float", "Collection", "Worth"):
+        t.add_column(col, justify="right" if col in ("#", "Float", "Worth") else "left")
+    for i, l in enumerate(owned, 1):
+        col = cat.collection_of(l.skin)
+        t.add_row(str(i), display_name(l) + (" [dim](trade hold)[/]" if l.trade_locked else ""),
+                  tier_label(l.skin.tier), f"{l.float_value:.6f}", col.name if col else "", money(l.cost))
     console.print(t)
 
 
@@ -177,9 +214,11 @@ def coverage_lines(cov) -> list[str]:
     """What a finished scan looked at and what it had to leave out, in plain words."""
     lines = [f"Checked real listings for {cov.checked} of {cov.ideas} ideas in {_clock(cov.seconds)} min."]
     if cov.checked < cov.ideas:
-        lines.append(f"[yellow]Time ran out before the other {cov.ideas - cov.checked} ideas (the ones with the "
-                     "lowest estimates). Run the scan again within the listing cache time to continue where "
-                     "this one stopped, or pick a longer search.[/]")
+        which = ("the lowest estimates among those your skins don't fit" if cov.owned_first
+                 else "the ones with the lowest estimates")
+        lines.append(f"[yellow]Time ran out before the other {cov.ideas - cov.checked} ideas ({which}). Run the "
+                     "scan again within the listing cache time to continue where this one stopped, or pick a "
+                     "longer search.[/]")
     skipped = cov.slow_skipped_none + cov.slow_skipped_price
     if cov.slow_searched or skipped:
         line = (f"Waxpeer: {cov.slow_searched} searches; {cov.slow_skipped_none} skipped because nothing is listed, "
@@ -238,5 +277,10 @@ def collection_table(col: Collection) -> None:
                       "yes" if s.stattrak else "", "yes" if s.souvenir else "")
         console.print(t)
     if col.special_pool:
+        # 65 finishes in one line are unreadable: one entry per knife/glove type with its number of finishes
+        types: dict[str, int] = {}
+        for name in col.special_pool:
+            kind = name.removeprefix("★ ").split(" | ")[0]
+            types[kind] = types.get(kind, 0) + 1
         console.print(f"[bold]Knives/gloves from 5 Coverts[/] ({len(col.special_pool)} possible): "
-                      + ", ".join(col.special_pool))
+                      + ", ".join(f"{k} ({n} finish{'es' if n > 1 else ''})" for k, n in types.items()))

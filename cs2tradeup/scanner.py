@@ -144,6 +144,7 @@ class Coverage:
     seconds: float = 0.0
     waiting: tuple[str, float] | None = None   # (market, reset time) while waiting for a request limit
     solving: int = 0                  # set once fetching is over: ideas now being solved
+    owned_first: bool = False         # ideas the user's own skins fit were moved to the front
 
 
 class ListingFetcher:
@@ -352,12 +353,29 @@ def _solve_all(catalog: Catalog, prices: PriceBook, cfg: Config, candidates: lis
     return uniq
 
 
+def owned_for(c: Candidate, owned: list[Listing], include_souvenir: bool) -> list[Listing]:
+    """Owned skins that can go into this idea's contract."""
+    return [l for l in owned if l.skin.collection_id == c.collection.id and l.skin.tier == c.tier
+            and l.stattrak == c.stattrak and (include_souvenir or not l.souvenir)]
+
+
+def owned_first(candidates: list[Candidate], owned: list[Listing], cfg: Config,
+                include_souvenir: bool) -> list[Candidate]:
+    """Ideas one of the owned skins is low enough for go first (stable, so each half stays best-first)."""
+    slack = float(cfg["scan"]["fetch_float_slack"])
+    usable = lambda c: any(l.float_value <= fetch_band(l.skin, c.bound, slack, cfg.float_formula)
+                           for l in owned_for(c, owned, include_souvenir))
+    return sorted(candidates, key=lambda c: not usable(c))
+
+
 async def deep_scan(catalog: Catalog, prices: PriceBook, cfg: Config, fetcher: ListingFetcher,
                     candidates: list[Candidate], include_souvenir: bool, log=print,
-                    deadline: float | None = None, progress=None) -> tuple[list[Result], Coverage]:
+                    deadline: float | None = None, progress=None,
+                    owned: list[Listing] = ()) -> tuple[list[Result], Coverage]:
     """Fetch listings for the candidates (in the given order) until `deadline`, then solve every checked one.
 
-    `progress(coverage)` is called whenever the counts change.
+    `owned` skins join the market listings of their collection. `progress(coverage)` is called whenever the
+    counts change.
     """
     started = time.time()
     cov = fetcher.coverage
@@ -417,7 +435,8 @@ async def deep_scan(catalog: Catalog, prices: PriceBook, cfg: Config, fetcher: L
     checked = [c for c in candidates if complete((c.collection.id, c.tier, c.stattrak))]
     cov.solving = len(checked)
     update()
-    pool_of = {k: [l for sk in done_keys(k) for l in fetcher.cache.get(sk, (0, []))[1]] for k in widest}
+    pool_of = {k: [l for sk in done_keys(k) for l in fetcher.cache.get(sk, (0, []))[1]]
+                  + owned_for(c, owned, include_souvenir) for k, c in widest.items()}
     return _solve_all(catalog, prices, cfg, checked, pool_of, log), cov
 
 
@@ -429,36 +448,69 @@ def contract_groups(catalog: Catalog, specs: list[str], tier_hint: int | None = 
     'col:Huntsman=7'               exactly 7 inputs from the Huntsman collection (any skin of the tier)
     'col:Chroma 2 Case=2-5'        between 2 and 5 inputs from that collection
     """
+    from .catalog import TIER_NAMES
+
     groups: list[Group] = []
     tiers: set[int] = set()
     col_specs = []
     for spec in specs:
         body, _, cnt = spec.partition("=")
         lo, hi = 0, 10
-        if cnt:
-            a, _, b = cnt.partition("-")
+        if cnt.strip():
+            a, _, b = (p.strip() for p in cnt.strip().partition("-"))
+            if not a.isdigit() or (b and not b.isdigit()):
+                raise ValueError(f"can't read the count in '{spec}': use =3 for exactly 3, or =2-5 for 2 to 5")
             lo = int(a)
             hi = int(b) if b else lo
+            if lo > hi:
+                raise ValueError(f"'{spec}': the first count must not be bigger than the second")
         body = body.strip()
         if body.lower().startswith("col:"):
             col_specs.append((catalog.find_collection(body[4:]), lo, hi))
         else:
             skin = catalog.find_skin(body)
+            col = catalog.collection_of(skin)
+            if not col or not col.outputs_for(skin.tier, False):
+                raise ValueError(f"{skin.name} is the highest rarity in its collection, so it can't be traded up")
+            if tier_hint is not None and skin.tier != tier_hint:
+                raise ValueError(f"{skin.name} is {TIER_NAMES[skin.tier]}, not {TIER_NAMES[tier_hint]} (--tier)")
             tiers.add(skin.tier)
             groups.append(Group({skin.id}, lo, hi, skin.name))
+    if len(tiers) > 1:
+        raise ValueError("all inputs must be the same rarity")
     if col_specs:
-        tier = tiers.pop() if len(tiers) == 1 else tier_hint
+        tier = tiers.pop() if tiers else tier_hint
         if tier is None:
             raise ValueError("collection-only inputs need --tier (e.g. --tier mil-spec)")
         tiers.add(tier)
         for col, lo, hi in col_specs:
             ids = {s.id for s in col.tiers.get(tier, [])}
             if not ids:
-                raise ValueError(f"{col.name} has no skins of that rarity")
+                raise ValueError(f"{col.name} has no {TIER_NAMES[tier]} skins")
+            if not col.outputs_for(tier, False):
+                raise ValueError(f"{col.name}: {TIER_NAMES[tier]} is its highest rarity, so it can't be traded up")
             groups.append(Group(ids, lo, hi, col.name))
-    if len(tiers) != 1:
-        raise ValueError("all inputs must be the same rarity")
     return groups, tiers.pop()
+
+
+def check_groups(catalog: Catalog, groups: list[Group], tier: int, stattrak: bool) -> None:
+    """Raise ValueError (in plain words) when no contract can satisfy these group counts."""
+    from .catalog import TIER_NAMES
+
+    n = contract_size(tier)
+    for g in groups:
+        if g.min_count > n:
+            raise ValueError(f"{g.label}: {g.min_count} skins asked for, but a {TIER_NAMES[tier]} contract has "
+                             f"only {n} slots")
+        if stattrak and g.min_count and not any(catalog.skins[sid].stattrak for sid in g.skin_ids):
+            raise ValueError(f"{g.label} has no StatTrak™ version")
+    if sum(g.min_count for g in groups) > n:
+        raise ValueError(f"the counts add up to {sum(g.min_count for g in groups)}, more than the {n} slots "
+                         "of this contract")
+    most = sum(min(g.max_count, n) for g in groups)
+    if most < n:
+        raise ValueError(f"the counts add up to at most {most} skins, but this contract needs exactly {n}. "
+                         "Raise a count, or leave one out (\"Skin\" without =N) to let the program decide")
 
 
 async def fetch_group_listings(catalog: Catalog, fetcher: ListingFetcher, groups: list[Group], tier: int,
@@ -480,5 +532,5 @@ async def fetch_group_listings(catalog: Catalog, fetcher: ListingFetcher, groups
     return [l for part in await asyncio.gather(*jobs) for l in part]
 
 
-__all__ = ["Candidate", "coarse_candidates", "deep_scan", "ListingFetcher", "contract_groups",
+__all__ = ["Candidate", "coarse_candidates", "deep_scan", "ListingFetcher", "contract_groups", "check_groups",
            "fetch_group_listings", "COVERT"]
